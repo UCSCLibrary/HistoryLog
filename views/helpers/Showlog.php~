@@ -1,0 +1,10 @@
+class HistoryLog_View_Helper_ItemShowLog extends Zend_View_Helper_Abstract
+{
+  public function itemShowLog($max=5)
+    {
+        // Build markup.
+      $markup = "<h1>What?</h1>";
+
+      return $markup;
+    }
+}

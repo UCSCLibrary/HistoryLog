@@ -1,0 +1,10 @@
+[info]
+name="METS Export"
+author="Ned Henry"
+description="Adds functionality to export Omeka items as METS xml files, either at the item or the collection level"
+license="GPLv3"
+link=""
+support_link=""
+omeka_minimum_version="2.1"
+omeka_target_version="2.1"
+version="1.0.0"
