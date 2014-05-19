@@ -23,7 +23,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 			      'after_save_item',
 			      'before_save_item',
 			      'define_acl',
-			      'after_delete_item',
+			      'before_delete_item',
 			      'admin_items_show',
 			      'admin_head',
 			      'initialize'
@@ -102,7 +102,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     {
       $item = $args['record'];
       //if it's not a new item, check for changes
-      if( !isset($args['insert']) || !$args['insert'] )
+      if( empty($args['insert']) )
 	{
 	  $changedElements = $this->_findChanges($item);
 
@@ -121,7 +121,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 	} 
     }
 
-    public function hookAfterDeleteItem($args)
+    public function hookBeforeDeleteItem($args)
     {
       $item = $args['record'];
       $this->_logItemDeletion($item->id);
@@ -161,7 +161,6 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 
       if(is_null($currentUser))
 	die('ERROR');
-
       $values = array (
 		       'itemID'=>$itemID,
 		       'title'=>$this->_getTitle($itemID),
@@ -169,6 +168,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 		       'type' => $type,
 		       'value' => $value
 		       );
+      print_r($values);
       $db = get_db();
       $db->insert('ItemHistoryLog',$values);
     }

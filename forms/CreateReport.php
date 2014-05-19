@@ -138,14 +138,14 @@ class HistoryLog_Form_Reports extends Omeka_Form
 	    $timeEnd = $_REQUEST['dateend'];
 
 	 
-	  $query = 'SELECT id,itemID,userID,type,value,time FROM omeka_item_history_logs WHERE itemID LIKE "'.$itemID.'" AND type LIKE "'.$action.'" AND userID LIKE "'.$userID.'" AND time > "'.$timeStart.'" AND time < "'.$timeEnd.'";';
+	  $query = 'SELECT id,title,itemID,userID,type,value,time FROM omeka_item_history_logs WHERE itemID LIKE "'.$itemID.'" AND type LIKE "'.$action.'" AND userID LIKE "'.$userID.'" AND time > "'.$timeStart.'" AND time < "'.$timeEnd.'";';
 
 	  $result = $dB->query($query);
 	  $rows = $result->fetchAll();
 
 	  if($style == 'html')
 	    {
-	      $logStart = "<table>";
+	      $logStart = "<table><tr style=\"font-weight:bold\"><td>Item Title</td><td>User</td><td>Action</td><td>Details</td><td>Date</td></tr>";
 	      $rowStart = "<tr><td>";
 	      $colSep = "</td><td>";
 	      $rowEnd = "</td></tr>";
