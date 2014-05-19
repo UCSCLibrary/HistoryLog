@@ -14,10 +14,12 @@
 class HistoryLog_LogController extends Omeka_Controller_AbstractActionController
 {    
  
-
-  public function showAction()
+  public function reportsAction()
   {
-    $this->view->itemID = $this->_getParam('item');
+    include_once(dirname(dirname(__FILE__))."/forms/CreateReport.php");
+    $this->view->form = new HistoryLog_Form_Reports();
+    HistoryLog_Form_Reports::ProcessPost();
   }
 
 }
+  

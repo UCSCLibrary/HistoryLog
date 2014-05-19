@@ -22,14 +22,49 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 			      'uninstall',
 			      'after_save_item',
 			      'before_save_item',
+			      'define_acl',
 			      'after_delete_item',
 			      'admin_items_show',
+			      'admin_head',
 			      'initialize'
 			      );
+  
     /**
      * @var array Filters for the plugin.
      */
-    protected $_filters = array();
+    protected $_filters = array('admin_navigation_main');
+
+    public function hookAdminHead()
+    {
+      queue_js_file('HistoryLog');
+      queue_css_file('HistoryLog');
+    }
+
+    /**
+     * Define the plugin's access control list.
+     */
+    public function hookDefineAcl($args)
+    {
+      $args['acl']->addResource('HistoryLog_Index');
+    }
+
+    /**
+     * Add the History Log link to the admin main navigation.
+     * 
+     * @param array Navigation array.
+     * @return array Filtered navigation array.
+     */
+    public function filterAdminNavigationMain($nav)
+    {
+      $nav[] = array(
+		     'label' => __('Item History Logs'),
+		     'uri' => url('history-log/index/reports'),
+		     'resource' => 'HistoryLog_Index',
+		     'privilege' => 'index'
+		     );
+      return $nav;
+    }
+
     
     public function hookInstall()
     {
@@ -39,6 +74,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         $sql = "
             CREATE TABLE IF NOT EXISTS `$db->ItemHistoryLog` (
                 `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+                `title` text,
                 `itemID` int(10) NOT NULL,
                 `userID` int(10) NOT NULL,
                 `time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -94,15 +130,9 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     public function hookAdminItemsShow($args)
     {
       
-      //echo get_view()->showlog();
       $item = $args['item'];
       $view = $args['view'];
-      //check context (SOMEHOW - get output var?). Is this an export? if so, log it!
-      //then add the log display! Include view helper?
-
-      //echo('yo');
-
-      echo($view->showlog($item->id,4));
+      echo($view->showlog($item->id,5));
     }
     
     private function _logItemCreation($itemID,$source="")
@@ -134,6 +164,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 
       $values = array (
 		       'itemID'=>$itemID,
+		       'title'=>$this->_getTitle($itemID),
 		       'userID' => $currentUser->id,
 		       'type' => $type,
 		       'value' => $value
@@ -181,6 +212,18 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 	}
       
       return $changedElements;
+    }
+
+    private function _getTitle($itemID)
+    {
+      $item = get_record_by_id('Item',$itemID);
+      $titles = $item->getElementTexts("Dublin Core","Title");
+      if(isset($titles[0]))
+	$title = $titles[0];
+      else
+	$title = "untitled / title unknown";
+
+      return $title;
     }
 
 

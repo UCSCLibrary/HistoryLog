@@ -88,7 +88,9 @@ class HistoryLog_View_Helper_Showlog extends Zend_View_Helper_Abstract
           if($max>0 && count($rows) >= $max)
 	    {
 	      ?><tr><td>
-	      <a href="<?php echo($this->view->url('history-log/log/show',array('item'=>$itemID)));?>">
+	      <a href="<?php 
+echo($this->view->url('history-log/log/show/item/'.$itemID));
+?>">
 	        <strong>See more</strong>
 	      </a>
 	      </td></tr><?php
