@@ -1,16 +1,26 @@
 <?php
 /**
- * HistoryLog
+ * HistoryLog full item log show page
  *
+ * @copyright Copyright 2014 UCSC Library Digital Initiatives
+ * @license http://www.gnu.org/licenses/gpl-3.0.txt GNU GPLv3
  */
 
 /**
+ * History log view helper
  * @package HistoryLog\View\Helper
  */
 
 class HistoryLog_View_Helper_Showlog extends Zend_View_Helper_Abstract
 {
-  public function showlog($itemID,$max=5)
+  /**
+     * Create html with log information for a given item
+     * 
+     * @param int $itemID The ID of the item to retrieve info from.
+     * @param int $max The maximum number of log entries to retrieve
+     * @return string $html An html table of requested log information
+     */
+    public function showlog($itemID,$max=5)
     {
       $db = get_db();
 
@@ -25,29 +35,15 @@ class HistoryLog_View_Helper_Showlog extends Zend_View_Helper_Abstract
 	$query .= "LIMIT $max";
 
       $query .= ";";
-
-      //die($query);
-
       $statement = $db->query($query);
       $rows = $statement->fetchAll();
-
-      //print_r($result);
-      //die();
-      
       $markup = "";
 
-      /*
-	$this->view->partial('scripts/itemLog.php',array(
-					 'showElementSetHeadings'=>true,
-					 'setName' => 'Logs',
-					 'elementName' => 'Item curation history',
-					 'rows' => $rows
-					 ));
-      */
 
       $showElementSetHeadings=true;
-      $setName = 'Logs';
-      $elementName = 'Item curation history';
+      $elementName = 'Log';
+      $setName = 'Item Curation History';
+      //$elementName = 'Item '.$itemID.": ".$this->_getTitle($itemID);
       if(!empty($rows))
 	  {
 	    ob_start();
@@ -113,12 +109,29 @@ echo($this->view->url('history-log/log/show/item/'.$itemID));
       return $markup;
     }
 
+    /**
+     * Retrieve username of an omeka user by user ID
+     *
+     *@param int $userID The ID of the Omeka user
+     *@return string $username The username of the Omeka user
+     */
     private function _getUsername($userID)
       {
 	$user = get_record_by_id('User',$userID);
+	if(empty($user))
+	  return('cannot find user');
 	return( $user->name ." (".$user->username.")");
       }
 
+    /**
+     * Retrieve "value" parameter in user displayable form
+     *
+     *@param string $type the slug of the type of action
+     *associated with this value parameter
+     *@param string $dbValue The "value" parameter 
+     *directly from the database
+     *@return string $value The value is human readable form.
+     */
     private function _getValue($type,$dbValue)
       {
         switch($type)
@@ -158,5 +171,25 @@ echo($this->view->url('history-log/log/show/item/'.$itemID));
 	  }
 	    
       }
+
+    /**
+     * Retrieves the title of an item by itemID
+     * 
+     * @param int $itemID The id of the item to log
+     * @return string $title The Dublin Core title of the item.
+     */
+    private function _getTitle($itemID)
+    {
+      if(!is_numeric($itemID))
+	throw new Exception('Could not retrieve Item ID');
+      $item = get_record_by_id('Item',$itemID);
+      $titles = $item->getElementTexts("Dublin Core","Title");
+      if(isset($titles[0]))
+	$title = $titles[0];
+      else
+	$title = "untitled / title unknown";
+
+      return $title;
+    }
 
 }

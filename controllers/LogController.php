@@ -14,7 +14,11 @@
 class HistoryLog_LogController extends Omeka_Controller_AbstractActionController
 {    
  
-
+  /*
+   *Set up the view for full item reports
+   *
+   *@return void
+   */
   public function showAction()
   {
     $this->view->itemID = $this->_getParam('item');

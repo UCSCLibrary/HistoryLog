@@ -14,6 +14,11 @@
 class HistoryLog_IndexController extends Omeka_Controller_AbstractActionController
 {    
  
+  /*
+   *Display the main log report form, process it, and initiate downloads if necessary.
+   *
+   *@return void
+   */
   public function reportsAction()
   {
     include_once(dirname(dirname(__FILE__))."/forms/CreateReport.php");
@@ -38,6 +43,11 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
 	$this->view->form = $form;
   }
 
+  /*
+   *Checks whether user requested a downloaded log file
+   *
+   *@return bool Automatic download if true, html display if false
+   */
   private function _is_download()
   {
     if(isset($_REQUEST['submitdownload']))

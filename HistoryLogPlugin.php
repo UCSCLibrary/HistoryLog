@@ -1,6 +1,9 @@
 <?php
 /**
- * History Log
+ * Item History Log
+ *
+ * This Omeka 2.0+ plugin logs curatorial actions such as adding,
+ * deleting, or modifying items.
  *
  * @copyright Copyright 2014 UCSC Library Digital Initiatives
  * @license http://www.gnu.org/licenses/gpl-3.0.txt GNU GPLv3
@@ -8,12 +11,11 @@
 
 
 /**
- * History Log plugin.
+ * History Log plugin class
  */
 class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 {
-  private $_changedElements;
-
+  
     /**
      * @var array Hooks for the plugin.
      */
@@ -25,7 +27,6 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 			      'define_acl',
 			      'before_delete_item',
 			      'admin_items_show',
-			      'admin_head',
 			      'initialize'
 			      );
   
@@ -34,14 +35,11 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     protected $_filters = array('admin_navigation_main');
 
-    public function hookAdminHead()
-    {
-      queue_js_file('HistoryLog');
-      queue_css_file('HistoryLog');
-    }
-
     /**
      * Define the plugin's access control list.
+     *
+     *@param array $args Parameters supplied by the hook
+     *@return void
      */
     public function hookDefineAcl($args)
     {
@@ -49,10 +47,20 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     }
 
     /**
+     * Load the helper class when the plugin loads
+     *
+     *@return void
+     */
+    public function hookInitialize()
+    {
+      include_once('helpers/Log.php');
+    }
+
+    /**
      * Add the History Log link to the admin main navigation.
      * 
-     * @param array Navigation array.
-     * @return array Filtered navigation array.
+     * @param array $nav Navigation array.
+     * @return array $filteredNav Filtered navigation array.
      */
     public function filterAdminNavigationMain($nav)
     {
@@ -65,7 +73,12 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
       return $nav;
     }
 
-    
+    /**
+     * When the plugin installs, create the database tables 
+     *to store the logs
+     * 
+     * @return void
+     */
     public function hookInstall()
     {
 
@@ -76,6 +89,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
                 `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
                 `title` text,
                 `itemID` int(10) NOT NULL,
+                `collectionID` int(10) NOT NULL,
                 `userID` int(10) NOT NULL,
                 `time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 `type` text,
@@ -85,6 +99,12 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         $db->query($sql);
     }
 
+    /**
+     * When the plugin uninstalls, delete the database tables 
+     *which store the logs
+     * 
+     * @return void
+     */
     public function hookUninstall()
     {
       $db = get_db();
@@ -93,11 +113,14 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 
     }
 
-    public function hookInitialize()
-    {
-      //get_view()->addHelperPath(dirname(__FILE__) . '/views/helpers', 'HistoryLog_View_Helper_');
-    }
-
+    /**
+     * When an item is saved, determine whether it is a new item
+     * or an item update. If it is an update, log the event.
+     * Otherwise, wait until after the save.
+     * 
+     *@param array $args An array of parameters passed by the hook
+     * @return void
+     */
     public function hookBeforeSaveItem($args)
     {
       $item = $args['record'];
@@ -107,26 +130,51 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 	  $changedElements = $this->_findChanges($item);
 
 	  //log item update for each changed elements
-	  $this->_logItemUpdate($item->id,$changedElements);
+	  $this->_logItem($item,'updated',serialize($changedElements));
 	}
     }
 
+    /**
+     * When an item is saved, determine whether it is a new item
+     * or an item update. If it is a new item, log the event.
+     * 
+     *@param array $args An array of parameters passed by the hook
+     * @return void
+     */
     public function hookAfterSaveItem($args)
     {
       $item = $args['record'];
+      $source = "";
+
+      //if it's a new item
       if( isset($args['insert']) && $args['insert'] )
 	{
 	  //log new item
-	  $this->_logItemCreation($item->id);
+	  $this->_logItem($item,'created',$source);
 	} 
     }
 
+
+    /**
+     * When an item is deleted, log the event.
+     * 
+     * @param array $args An array of parameters passed by the hook
+     * @return void
+     */
     public function hookBeforeDeleteItem($args)
     {
       $item = $args['record'];
-      $this->_logItemDeletion($item->id);
+      $this->_logItem($item,'deleted',null);
     }
 
+
+    /**
+     * Show the 5 most recent events in the item's history on the
+     *item's admin page
+     * 
+     * @param array $args An array of parameters passed by the hook
+     * @return void
+     */
     public function hookAdminItemsShow($args)
     {
       
@@ -134,45 +182,45 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
       $view = $args['view'];
       echo($view->showlog($item->id,5));
     }
-    
-    private function _logItemCreation($itemID,$source="")
-    {
-      $this->_logItem($itemID,'created',$source);
-    }
 
-    private function _logItemUpdate($itemID,$elements)
-    {
-      $this->_logItem($itemID,'updated',serialize($elements));
-    }
 
-    private function _logItemDeletion($itemID)
-    {
-      $this->_logItem($itemID,'deleted',NULL);
-    }
-
-    private function _logItemExport($itemID,$context)
-    {
-      $this->_logItem($itemID,'exported',$context);
-    }
-
-    private function _logItem($itemID,$type,$value)
+    /**
+     * Create a new log entry 
+     * 
+     * @param int $itemID The id of the item to log
+     * @param string $type The type of event to log (e.g. "create", "update")
+     * @param string $value An extra piece of type specific data for the log
+     * @return void
+     */
+    private function _logItem($item,$type,$value)
     {
       $currentUser = current_user();
+      
+      $collectionID = $item->collection_id;
+      if(!isset($collectionID))
+	$collectionID = 0;
 
       if(is_null($currentUser))
-	die('ERROR');
+	throw new Exception('Could not retrieve user info');
       $values = array (
-		       'itemID'=>$itemID,
-		       'title'=>$this->_getTitle($itemID),
+		       'itemID'=>$item->id,
+		       'title'=>$this->_getTitle($item->id),
+		       'collectionID'=>$collectionID,
 		       'userID' => $currentUser->id,
 		       'type' => $type,
 		       'value' => $value
 		       );
-      print_r($values);
       $db = get_db();
       $db->insert('ItemHistoryLog',$values);
     }
 
+
+    /**
+     * If an item is being updated, find out which elements are being altered 
+     * 
+     * @param Object $item The updated omeka item record
+     * @return array $changedElements An array of element IDs of altered elements
+     */
     private function _findChanges($item)
     {
       $newElements = $item->Elements;
@@ -214,8 +262,16 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
       return $changedElements;
     }
 
+    /**
+     * Retrieves the title of an item by itemID
+     * 
+     * @param int $itemID The id of the item to log
+     * @return string $title The Dublin Core title of the item.
+     */
     private function _getTitle($itemID)
     {
+      if(!is_numeric($itemID))
+	throw new Exception('Could not retrieve Item ID');
       $item = get_record_by_id('Item',$itemID);
       $titles = $item->getElementTexts("Dublin Core","Title");
       if(isset($titles[0]))
