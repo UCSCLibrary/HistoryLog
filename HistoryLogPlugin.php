@@ -27,7 +27,8 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 			      'define_acl',
 			      'before_delete_item',
 			      'admin_items_show',
-			      'initialize'
+			      'initialize',
+			      'admin_head'
 			      );
   
     /**
@@ -57,6 +58,16 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     }
 
     /**
+     * Load the plugin javascript when admin section loads
+     *
+     *@return void
+     */
+    public function hookAdminHead()
+    {
+      queue_js_file('HistoryLog');
+    }
+
+    /**
      * Add the History Log link to the admin main navigation.
      * 
      * @param array $nav Navigation array.
@@ -81,10 +92,10 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     public function hookInstall()
     {
+      try{
+	$db = get_db();
 
-        $db = get_db();
-
-        $sql = "
+	$sql = "
             CREATE TABLE IF NOT EXISTS `$db->ItemHistoryLog` (
                 `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
                 `title` text,
@@ -96,7 +107,11 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
                 `value` text,
                 PRIMARY KEY (`id`)
             ) ENGINE=MyISAM DEFAULT CHARSET=utf8;";
-        $db->query($sql);
+	$db->query($sql);
+      }catch(Exception $e) {
+	$flashMessenger = $this->_helper->FlashMessenger;
+	$flashMessenger->addMessage("Error installing plugin. Could not add database table. ".$e->getMessage(),"error");  
+      }
     }
 
     /**
@@ -107,9 +122,14 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     public function hookUninstall()
     {
-      $db = get_db();
-      $sql = "DROP TABLE IF EXISTS `$db->ItemHistoryLog` ";
-      $db->query($sql);
+      try{
+	$db = get_db();
+	$sql = "DROP TABLE IF EXISTS `$db->ItemHistoryLog` ";
+	$db->query($sql);
+      }catch(Exception $e) {
+	$flashMessenger = $this->_helper->FlashMessenger;
+	$flashMessenger->addMessage("Error uninstalling plugin. Could not remove database table. ".$e->getMessage(),"error");  	
+      }
 
     }
 
@@ -127,10 +147,15 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
       //if it's not a new item, check for changes
       if( empty($args['insert']) )
 	{
-	  $changedElements = $this->_findChanges($item);
+	  try{
+	    $changedElements = $this->_findChanges($item);
 
-	  //log item update for each changed elements
-	  $this->_logItem($item,'updated',serialize($changedElements));
+	    //log item update for each changed elements
+	    $this->_logItem($item,'updated',serialize($changedElements));
+	  }catch(Exception $e) {
+	    $flashMessenger = $this->_helper->FlashMessenger;
+	    $flashMessenger->addMessage("Error logging curation event. ".$e->getMessage(),"error");  	
+	  }
 	}
     }
 
@@ -149,8 +174,13 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
       //if it's a new item
       if( isset($args['insert']) && $args['insert'] )
 	{
-	  //log new item
-	  $this->_logItem($item,'created',$source);
+	  try{
+	    //log new item
+	    $this->_logItem($item,'created',$source);
+	  }catch(Exception $e) {
+	    $flashMessenger = $this->_helper->FlashMessenger;
+	    $flashMessenger->addMessage("Error logging curation event. ".$e->getMessage(),"error");  	
+	  }
 	} 
     }
 
@@ -164,7 +194,11 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     public function hookBeforeDeleteItem($args)
     {
       $item = $args['record'];
-      $this->_logItem($item,'deleted',null);
+      try{
+	$this->_logItem($item,'deleted',null);
+      }catch(Exception $e) {
+	throw $e; 
+      }
     }
 
 
@@ -180,7 +214,11 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
       
       $item = $args['item'];
       $view = $args['view'];
-      echo($view->showlog($item->id,5));
+      try{
+	echo($view->showlog($item->id,5));
+      }catch(Exception $e) {
+	throw $e; 
+      }
     }
 
 
@@ -202,18 +240,32 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 
       if(is_null($currentUser))
 	throw new Exception('Could not retrieve user info');
+
+      $title="Untitled";
+      try{
+	$title=$this->_getTitle($item->id);
+      }catch(Exception $e) {
+	$flashMessenger = $this->_helper->FlashMessenger;
+	$flashMessenger->addMessage("Error retrieving item title. ".$e->getMessage(),"error");  	
+      }
+      
       $values = array (
 		       'itemID'=>$item->id,
-		       'title'=>$this->_getTitle($item->id),
+		       'title'=>$title,
 		       'collectionID'=>$collectionID,
 		       'userID' => $currentUser->id,
 		       'type' => $type,
 		       'value' => $value
 		       );
-      $db = get_db();
-      $db->insert('ItemHistoryLog',$values);
+      try{
+	$db = get_db();
+	$db->insert('ItemHistoryLog',$values);
+      }catch(Exception $e) {
+	$flashMessenger = $this->_helper->FlashMessenger;
+	$flashMessenger->addMessage($e->getMessage(),"error");  	
+      }
+    
     }
-
 
     /**
      * If an item is being updated, find out which elements are being altered 
@@ -225,15 +277,26 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     {
       $newElements = $item->Elements;
       $changedElements = array();
-      $oldItem = get_record_by_id('Item',$item->id);
+      try{
+	$oldItem = get_record_by_id('Item',$item->id);
+      }catch(Exception $e) {
+	$flashMessenger = $this->_helper->FlashMessenger;
+	$flashMessenger->addMessage("Error retrieving item info. ".$e->getMessage(),"error");  	
+      }
+    
 
       foreach ($newElements as $newElementID => $newElementTexts)
 	{
 	  $flag=false;
-
-	  $element = get_record_by_id('Element',$newElementID);
-	  $oldElementTexts =  $oldItem->getElementTextsByRecord($element);
 	  
+	  try{
+	    $element = get_record_by_id('Element',$newElementID);
+	    $oldElementTexts =  $oldItem->getElementTextsByRecord($element);
+	  }catch(Exception $e) {
+	    $flashMessenger = $this->_helper->FlashMessenger;
+	    $flashMessenger->addMessage("Error retrieving item metadata. ".$e->getMessage(),"error");  	
+	  }	  	  	  
+
 	  $oldETextsArray = array();
 	  foreach($oldElementTexts as $oldElementText)
 	    {
@@ -272,8 +335,15 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     {
       if(!is_numeric($itemID))
 	throw new Exception('Could not retrieve Item ID');
-      $item = get_record_by_id('Item',$itemID);
-      $titles = $item->getElementTexts("Dublin Core","Title");
+
+      try{
+	$item = get_record_by_id('Item',$itemID);
+	$titles = $item->getElementTexts("Dublin Core","Title");
+      }catch(Exception $e) {
+	$flashMessenger = $this->_helper->FlashMessenger;
+	$flashMessenger->addMessage("Error retrieving item title. ".$e->getMessage(),"error");  	
+      }
+
       if(isset($titles[0]))
 	$title = $titles[0];
       else

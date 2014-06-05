@@ -21,7 +21,12 @@ class HistoryLog_LogController extends Omeka_Controller_AbstractActionController
    */
   public function showAction()
   {
-    $this->view->itemID = $this->_getParam('item');
+
+    $flashMessenger = $this->_helper->FlashMessenger;
+    $item = $this->_getParam('item');
+    if(empty($item))
+      $flashMessenger->addMessage("Item not selected.","error");
+    $this->view->itemID = $item;
   }
 
 }
