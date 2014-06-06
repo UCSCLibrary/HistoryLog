@@ -360,8 +360,8 @@ class HistoryLog_Form_Reports extends Omeka_Form
   /**
    * Retrieve displayable name of an action by its slug
    *
-   *@param string $slug All lower case action name from the database
-   *@return string $action User displayable action name
+   *@param string $actionSlug All lower case action name from the database
+   *@return string $actionSlug User displayable action name
    */
   private static function _getAction($actionSlug)
   {

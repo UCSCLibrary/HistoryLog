@@ -109,8 +109,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
             ) ENGINE=MyISAM DEFAULT CHARSET=utf8;";
 	$db->query($sql);
       }catch(Exception $e) {
-	$flashMessenger = $this->_helper->FlashMessenger;
-	$flashMessenger->addMessage("Error installing plugin. Could not add database table. ".$e->getMessage(),"error");  
+	throw $e; 
       }
     }
 
@@ -127,8 +126,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 	$sql = "DROP TABLE IF EXISTS `$db->ItemHistoryLog` ";
 	$db->query($sql);
       }catch(Exception $e) {
-	$flashMessenger = $this->_helper->FlashMessenger;
-	$flashMessenger->addMessage("Error uninstalling plugin. Could not remove database table. ".$e->getMessage(),"error");  	
+	throw $e;	
       }
 
     }
@@ -153,8 +151,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 	    //log item update for each changed elements
 	    $this->_logItem($item,'updated',serialize($changedElements));
 	  }catch(Exception $e) {
-	    $flashMessenger = $this->_helper->FlashMessenger;
-	    $flashMessenger->addMessage("Error logging curation event. ".$e->getMessage(),"error");  	
+	    throw $e;
 	  }
 	}
     }
@@ -178,8 +175,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 	    //log new item
 	    $this->_logItem($item,'created',$source);
 	  }catch(Exception $e) {
-	    $flashMessenger = $this->_helper->FlashMessenger;
-	    $flashMessenger->addMessage("Error logging curation event. ".$e->getMessage(),"error");  	
+	    throw $e;
 	  }
 	} 
     }
@@ -225,7 +221,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     /**
      * Create a new log entry 
      * 
-     * @param int $itemID The id of the item to log
+     * @param Object $item The Omeka item to log
      * @param string $type The type of event to log (e.g. "create", "update")
      * @param string $value An extra piece of type specific data for the log
      * @return void
@@ -245,8 +241,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
       try{
 	$title=$this->_getTitle($item->id);
       }catch(Exception $e) {
-	$flashMessenger = $this->_helper->FlashMessenger;
-	$flashMessenger->addMessage("Error retrieving item title. ".$e->getMessage(),"error");  	
+	throw $e;
       }
       
       $values = array (
@@ -261,8 +256,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 	$db = get_db();
 	$db->insert('ItemHistoryLog',$values);
       }catch(Exception $e) {
-	$flashMessenger = $this->_helper->FlashMessenger;
-	$flashMessenger->addMessage($e->getMessage(),"error");  	
+	throw $e;
       }
     
     }
@@ -280,8 +274,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
       try{
 	$oldItem = get_record_by_id('Item',$item->id);
       }catch(Exception $e) {
-	$flashMessenger = $this->_helper->FlashMessenger;
-	$flashMessenger->addMessage("Error retrieving item info. ".$e->getMessage(),"error");  	
+	throw $e;
       }
     
 
@@ -293,8 +286,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 	    $element = get_record_by_id('Element',$newElementID);
 	    $oldElementTexts =  $oldItem->getElementTextsByRecord($element);
 	  }catch(Exception $e) {
-	    $flashMessenger = $this->_helper->FlashMessenger;
-	    $flashMessenger->addMessage("Error retrieving item metadata. ".$e->getMessage(),"error");  	
+	    throw $e; 	
 	  }	  	  	  
 
 	  $oldETextsArray = array();
@@ -340,8 +332,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 	$item = get_record_by_id('Item',$itemID);
 	$titles = $item->getElementTexts("Dublin Core","Title");
       }catch(Exception $e) {
-	$flashMessenger = $this->_helper->FlashMessenger;
-	$flashMessenger->addMessage("Error retrieving item title. ".$e->getMessage(),"error");  	
+	throw $e;
       }
 
       if(isset($titles[0]))

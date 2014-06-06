@@ -13,7 +13,13 @@
  */
 class HistoryLog_Helper_Log
 {
-
+  /**
+   *Retrieve log information for a given Omeka item
+   *
+   *@param int $itemID The ID of the omeka item whose logs to retrieve
+   *@param int $max The maximum number of log entries to retrieve
+   *@return array $logs An array representation of the log data
+   */
   public static function GetItemLog($itemID,$max)
   {
     

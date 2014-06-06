@@ -14,7 +14,7 @@
 class HistoryLog_IndexController extends Omeka_Controller_AbstractActionController
 {    
  
-  /*
+  /**
    *Display the main log report form, process it, 
    *and initiate downloads if necessary.
    *
@@ -60,7 +60,7 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
     $this->view->form = $form;
   }
 
-  /*
+  /**
    *Checks whether user requested a downloaded log file
    *
    *@return bool Automatic download if true, html display if false
