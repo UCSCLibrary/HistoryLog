@@ -144,10 +144,15 @@ echo($this->view->url('history-log/log/show/item/'.$itemID));
 	    break;
 
 	  case 'updated':
+		$update = unserialize($dbValue);
+		if(empty($update)) {
+			$rv = "File upload/edit";
+			return($rv);
+		}
 	    $rv = "Elements altered: ";
 
 	    $flag = false;
-	    foreach(unserialize($dbValue) as $elementID)
+	    foreach($update as $elementID)
 	      {
 	        if($flag)
 	          $rv.=", ";
@@ -156,7 +161,7 @@ echo($this->view->url('history-log/log/show/item/'.$itemID));
 	        $rv.=$element->name;
 	      }
 	    return($rv);
-	    break;
+	   
 
 	  case 'exported':
 	    if(isset($dbValue) && !empty($dbValue))

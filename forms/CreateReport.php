@@ -175,7 +175,7 @@ class HistoryLog_Form_Reports extends Omeka_Form
 
 	try{
 	  $dB = get_db();
-	  $query = 'SELECT id,title,itemID,collectionID,userID,type,value,time FROM omeka_item_history_logs WHERE itemID LIKE "'.$itemID.'" AND collectionID LIKE "'.$collectionID.'" AND type LIKE "'.$action.'" AND userID LIKE "'.$userID.'" AND time > "'.$timeStart.'" AND time < "'.$timeEnd.'" ORDER BY id DESC;';
+	  $query = 'SELECT id,title,itemID,collectionID,userID,type,value,time FROM `$db->ItemHistoryLog` WHERE itemID LIKE "'.$itemID.'" AND collectionID LIKE "'.$collectionID.'" AND type LIKE "'.$action.'" AND userID LIKE "'.$userID.'" AND time > "'.$timeStart.'" AND time < "'.$timeEnd.'" ORDER BY id DESC;';
 
 	  $result = $dB->query($query);
 	  $rows = $result->fetchAll();
@@ -259,6 +259,10 @@ class HistoryLog_Form_Reports extends Omeka_Form
    */
   private function _getCollectionOptions()
   {
+      $collectionTable = get_db()->getTable('Collection');
+      $options = $collectionTable->findPairsForSelectForm();
+      $options[0] = 'All Collections';
+    /*
     $collections = get_records('Collection',array(),'0');
     $options = array('0'=>'All Collections');
     foreach ($collections as $collection)
@@ -272,8 +276,9 @@ class HistoryLog_Form_Reports extends Omeka_Form
 	  $title = $titles[0];
 	$options[$collection->id]=$title;
       }
-
+    */
     return $options;
+    
   }
 
   /**
@@ -399,9 +404,13 @@ class HistoryLog_Form_Reports extends Omeka_Form
       case 'created':
 	return null;
       case 'updated':
+	$update = unserialize($encodedValue);
+	if(empty($update)) {
+		return("File upload/edit");
+	}	
 	$rv = 'Metadata elements modified: ';
 	$flag = false;
-	foreach(unserialize($encodedValue) as $elementID)
+	foreach($update as $elementID)
 	  {
 	    if($flag)
 	      $rv.=", ";

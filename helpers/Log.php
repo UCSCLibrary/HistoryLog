@@ -13,13 +13,7 @@
  */
 class HistoryLog_Helper_Log
 {
-  /**
-   *Retrieve log information for a given Omeka item
-   *
-   *@param int $itemID The ID of the omeka item whose logs to retrieve
-   *@param int $max The maximum number of log entries to retrieve
-   *@return array $logs An array representation of the log data
-   */
+
   public static function GetItemLog($itemID,$max)
   {
     
@@ -84,10 +78,14 @@ class HistoryLog_Helper_Log
 	break;
 
       case 'updated':
+	$update = unserialize($dbValue);
+	if(empty($update)) {
+		$rv = "File upload/edit";
+		return($rv);
+	}
 	$rv = "Elements altered: ";
-
 	$flag = false;
-	foreach(unserialize($dbValue) as $elementID)
+	foreach($update as $elementID)
 	  {
 	    if($flag)
 	      $rv.=", ";
@@ -96,7 +94,6 @@ class HistoryLog_Helper_Log
 	    $rv.=$element->name;
 	  }
 	return($rv);
-	break;
 
       case 'exported':
 	if(isset($dbValue) && !empty($dbValue))
