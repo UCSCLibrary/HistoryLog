@@ -258,10 +258,10 @@ class HistoryLog_Form_Reports extends Omeka_Form
    *collection IDs and titles
    */
   private function _getCollectionOptions()
-  {
+    {
       $collectionTable = get_db()->getTable('Collection');
-      $options = $collectionTable->findPairsForSelectForm();
-      $options[0] = 'All Collections';
+      $options = array('0'=>'All Collections');
+      $options = array_merge($options,$collectionTable->findPairsForSelectForm());
     /*
     $collections = get_records('Collection',array(),'0');
     $options = array('0'=>'All Collections');
