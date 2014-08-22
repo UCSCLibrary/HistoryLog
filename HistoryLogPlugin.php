@@ -27,7 +27,6 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 			      'define_acl',
 			      'before_delete_item',
 			      'admin_items_show',
-			      'initialize',
 			      'admin_head'
 			      );
   
@@ -45,16 +44,6 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     public function hookDefineAcl($args)
     {
       $args['acl']->addResource('HistoryLog_Index');
-    }
-
-    /**
-     * Load the helper class when the plugin loads
-     *
-     *@return void
-     */
-    public function hookInitialize()
-    {
-      include_once('helpers/Log.php');
     }
 
     /**
@@ -92,10 +81,10 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     public function hookInstall()
     {
+
       try{
-	$db = get_db();
 	$sql = "
-            CREATE TABLE IF NOT EXISTS `$db->ItemHistoryLog` (
+            CREATE TABLE IF NOT EXISTS `{$this->_db->HistoryLogEntry}` (
                 `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
                 `title` text,
                 `itemID` int(10) NOT NULL,
@@ -106,10 +95,11 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
                 `value` text,
                 PRIMARY KEY (`id`)
             ) ENGINE=MyISAM DEFAULT CHARSET=utf8;";
-	$db->query($sql);
+	$this->_db->query($sql);
       }catch(Exception $e) {
 	throw $e; 
       }
+
     }
 
     /**
@@ -122,7 +112,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     {
       try{
 	$db = get_db();
-	$sql = "DROP TABLE IF EXISTS `$db->ItemHistoryLog` ";
+	$sql = "DROP TABLE IF EXISTS `$db->HistoryLogEntry` ";
 	$db->query($sql);
       }catch(Exception $e) {
 	throw $e;	
@@ -230,6 +220,10 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     private function _logItem($item,$type,$value)
     {
+        require_once(dirname(__FILE__).'/models/HistoryLogEntry.php');
+        //die('test');
+        $logEntry = new HistoryLogEntry();
+
       $currentUser = current_user();
       
       $collectionID = $item->collection_id;
@@ -246,17 +240,25 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 	throw $e;
       }
       
-      $values = array (
+      $logEntry->itemID = $item->id;
+      $logEntry->title = $title;;
+      $logEntry->collectionID = $collectionID;
+      $logEntry->userID = $currentUser->id;
+      $logEntry->type = $type;
+      $logEntry->value = $value;
+
+/*      $values = array (
 		       'itemID'=>$item->id,
 		       'title'=>$title,
 		       'collectionID'=>$collectionID,
 		       'userID' => $currentUser->id,
 		       'type' => $type,
 		       'value' => $value
-		       );
+		       );*/
       try{
-	$db = get_db();
-	$db->insert('ItemHistoryLog',$values);
+          $logEntry->save();
+          //$db = get_db();
+          //$db->insert('ItemHistoryLog',$values);
       }catch(Exception $e) {
 	throw $e;
       }

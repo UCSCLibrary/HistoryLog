@@ -20,31 +20,21 @@ class HistoryLog_View_Helper_Showlog extends Zend_View_Helper_Abstract
      * @param int $max The maximum number of log entries to retrieve
      * @return string $html An html table of requested log information
      */
-    public function showlog($itemID,$max=5)
+    public function showlog($itemID,$limit=5)
     {
-      $db = get_db();
+      $params = array(
+          'itemID'=>$itemID
+      );
 
-      $query = "
-                 SELECT userID,type,value,time 
-                 FROM $db->ItemHistoryLog 
-                 WHERE itemID = \"$itemID\"
-                 ORDER BY id DESC ";
-
-
-      if($max>0)
-	$query .= "LIMIT $max";
-
-      $query .= ";";
-      $statement = $db->query($query);
-      $rows = $statement->fetchAll();
+      $logEntries = get_db()->getTable('HistoryLogEntry')->findBy($params,$limit);
       $markup = "";
-
 
       $showElementSetHeadings=true;
       $elementName = 'Log';
       $setName = 'Item Curation History';
       //$elementName = 'Item '.$itemID.": ".$this->_getTitle($itemID);
-      if(!empty($rows))
+
+      if(!empty($logEntries))
 	  {
 	    ob_start();
     ?>  
@@ -53,7 +43,6 @@ class HistoryLog_View_Helper_Showlog extends Zend_View_Helper_Abstract
   <?php if ($showElementSetHeadings): ?>
     <h2><?php echo html_escape(__($setName)); ?></h2>
   <?php endif; ?>
-
 
     <div id="<?php echo text_to_id(html_escape("$setName $elementName")); ?>" class="element">
     <h3><?php echo html_escape(__($elementName)); ?></h3>
@@ -67,21 +56,21 @@ class HistoryLog_View_Helper_Showlog extends Zend_View_Helper_Abstract
             <td><strong>Action</strong></td>
             <td><strong>Details</strong></td>
           </tr>						       
-        <?php foreach($rows as $row):?>
+        <?php foreach($logEntries as $logEntry):?>
 
  	  <?php 
-            $username = $this->_getUsername($row['userID']);
-	    $value = $this->_getValue($row['type'],$row['value']);
+            $username = $this->_getUsername($logEntry->userID);
+	    $value = $this->_getValue($logEntry->type,$logEntry->value);
 	  ?>
 
           <tr>
-            <td><?php echo($row['time']) ?></td>
+            <td><?php echo($logEntry->time) ?></td>
             <td><?php echo($username) ?></td>
-            <td><?php echo($row['type']) ?></td>
+            <td><?php echo($logEntry->type) ?></td>
             <td><?php echo($value) ?></td>
           </tr>
         <?php endforeach; 
-          if($max>0 && count($rows) >= $max)
+          if($limit>0 && count($logEntry) >= $limit)
 	    {
 	      ?><tr><td>
 	      <a href="<?php 
@@ -91,10 +80,7 @@ echo($this->view->url('history-log/log/show/item/'.$itemID));
 	      </a>
 	      </td></tr><?php
 	    }
-
-
          ?>
-
 							
       </table
 

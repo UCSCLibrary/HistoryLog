@@ -149,36 +149,35 @@ class HistoryLog_Form_Reports extends Omeka_Form
    */
   public static function ProcessPost($style="html")
   {
-
     //$itemID = $_POST[''];
     $log="";
-    $action = '%';
+    //$action = '%';
     $itemID = '%';
-    $collectionID = '%';
-    $userID = '%';
-    $timeStart = '1900-00-00';
-    $timeEnd = '2100-00-00';
+    //$collectionID = '%';
+    //$userID = '%';
+    $timeStart = null;//'1900-00-00';
+    $timeEnd = null;//'2100-00-00';
 
     if(isset($_REQUEST['action']))
-      {
+        {
+            $params = array();
+            if(!empty($_REQUEST['collection']))
+                $params['collectionID'] = $_REQUEST['collection'];
+            if(!empty($_REQUEST['action']))
+                $params['type'] = $_REQUEST['action'];
+            if(!empty($_REQUEST['user']))
+                $params['userID'] = $_REQUEST['user'];
 
-	if(!empty($_REQUEST['collection']))
-	  $collectionID = $_REQUEST['collection'];
-	if(!empty($_REQUEST['action']))
-	  $action = $_REQUEST['action'];
-	if(!empty($_REQUEST['user']))
-	  $userID = $_REQUEST['user'];
 	if(!empty($_REQUEST['datestart']) && $_REQUEST['datestart'] != "yyyy-mm-dd")
 	  $timeStart = $_REQUEST['datestart'];
 	if(!empty($_REQUEST['dateend']) && $_REQUEST['dateend'] != "yyyy-mm-dd")
 	  $timeEnd = $_REQUEST['dateend'];
 
-	try{
-	  $dB = get_db();
-	  $query = 'SELECT id,title,itemID,collectionID,userID,type,value,time FROM `$db->ItemHistoryLog` WHERE itemID LIKE "'.$itemID.'" AND collectionID LIKE "'.$collectionID.'" AND type LIKE "'.$action.'" AND userID LIKE "'.$userID.'" AND time > "'.$timeStart.'" AND time < "'.$timeEnd.'" ORDER BY id DESC;';
 
-	  $result = $dB->query($query);
-	  $rows = $result->fetchAll();
+            $logTable = get_db()->getTable('HistoryLogEntry'); 
+
+	try{
+            $logEntries = $logTable->getEntries($params,$timeStart,$timeEnd);
 	}catch(Exception $e){
 	  throw $e;
 	}
@@ -200,33 +199,27 @@ class HistoryLog_Form_Reports extends Omeka_Form
 	  }
 
 	$log .= $logStart;
-	$flag = false;
-	foreach($rows as $row)
-	  {
-	    //skip items from all but the selected collection
-	    //do this in sql when you get a chance
-	    //this will be slow for big collections
-	    if( $collectionID !== '%' && $collectionID != $row['collectionID'] )
-	      continue;
-	    
-	    $log.= $rowStart;
-	    //$log.=self::_getItem($row['itemID']);
-	    $log.=$row['title'];
-	    $log.=$colSep;
-	    $log.=self::_getUser($row['userID']);
-	    $log.=$colSep;
-	    $log.=self::_getAction($row['type']);
-	    $log.=$colSep;
-	    $log.=self::_getValue($row['value'],$row['type']);
-	    $log.=$colSep;
-	    $log.=self::_getDate($row['time']);
-	    $log.=$rowEnd;
-	    $flag = true;
-	  }
-	if(!$flag)
-	  $log.=$rowStart."No matching logs found".$colSep.$colSep.$colSep.$colSep.$rowEnd;
+        if(count($logEntries) > 0) {
+            foreach($logEntries as $logEntry)
+                { 
+                    $log.= $rowStart;
+                    //$log.=self::_getItem($row['itemID']);
+                    $log.=$row['title'];
+                    $log.=$colSep;
+                    $log.=self::_getUser($logEntry->userID);
+                    $log.=$colSep;
+                    $log.=self::_getAction($logEntry->type);
+                    $log.=$colSep;
+                    $log.=self::_getValue($logEntry->value,$logEntry->type);
+                    $log.=$colSep;
+                    $log.=self::_getDate($logEntry->time);
+                    $log.=$rowEnd;
+                
+                }
+        } else {
+            $log.=$rowStart."No matching logs found".$colSep.$colSep.$colSep.$colSep.$rowEnd;
+        }
 	$log.=$logEnd;
-
       }
     return($log);
   }
@@ -243,10 +236,10 @@ class HistoryLog_Form_Reports extends Omeka_Form
     return( 
 	   array(
 		 '0'=>'All Actions',
-		 'created'=>'Create Item',
-		 'updated'=>'Modify Item',
-		 'exported'=>'Export Item',
-		 'deleted'=>'Delete Item'
+		 'created'=>'Item Created',
+		 'updated'=>'Item Modified',
+		 'exported'=>'Item Exported',
+		 'deleted'=>'Item Deleted'
 		 )
 	    );
   }
@@ -262,21 +255,6 @@ class HistoryLog_Form_Reports extends Omeka_Form
       $collectionTable = get_db()->getTable('Collection');
       $options = array('0'=>'All Collections');
       $options = array_merge($options,$collectionTable->findPairsForSelectForm());
-    /*
-    $collections = get_records('Collection',array(),'0');
-    $options = array('0'=>'All Collections');
-    foreach ($collections as $collection)
-      {
-	try{
-	  $titles = $collection->getElementTexts('Dublin Core','Title');
-	}catch(Exception $e){
-	  throw($e);
-	}
-	if(isset($titles[0]))
-	  $title = $titles[0];
-	$options[$collection->id]=$title;
-      }
-    */
     return $options;
     
   }
