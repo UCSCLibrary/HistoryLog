@@ -203,8 +203,7 @@ class HistoryLog_Form_Reports extends Omeka_Form
             foreach($logEntries as $logEntry)
                 { 
                     $log.= $rowStart;
-                    //$log.=self::_getItem($row['itemID']);
-                    $log.=$row['title'];
+                    $log.=$logEntry->title;
                     $log.=$colSep;
                     $log.=self::_getUser($logEntry->userID);
                     $log.=$colSep;
