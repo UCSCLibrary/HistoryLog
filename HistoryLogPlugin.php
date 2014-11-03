@@ -42,8 +42,8 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     /**
      * Define the plugin's access control list.
      *
-     *@param array $args Parameters supplied by the hook
-     *@return void
+     * @param array $args Parameters supplied by the hook
+     * @return void
      */
     public function hookDefineAcl($args)
     {
@@ -53,7 +53,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     /**
      * Load the plugin javascript when admin section loads
      *
-     *@return void
+     * @return void
      */
     public function hookAdminHead()
     {
@@ -162,7 +162,15 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     public function hookAfterSaveItem($args)
     {
       $item = $args['record'];
+
       $source = "";
+
+      if(strpos('nuxeo-link',current_url()))
+          $source = "Nuxeo";
+      else if(strpos('youtube',current_url()))
+          $source = "YouTube";
+      else if(strpos('flickr',current_url()))
+          $source = "Flickr";
 
       //if it's a new item
       if( isset($args['insert']) && $args['insert'] )
@@ -175,7 +183,6 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 	  }
 	} 
     }
-
 
     /**
      * When an item is deleted, log the event.

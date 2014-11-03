@@ -67,7 +67,7 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
    */
   private function _is_download()
   {
-    if(isset($_REQUEST['submitdownload']))
+    if(isset($_REQUEST['submit-download']) && $_REQUEST['submit-download'])
       return(true);
     else
       return(false);

@@ -51,15 +51,15 @@ class HistoryLog_Form_Reports extends Omeka_Form
 
     // Collection:
     $this->addElement('select', 'collection', array(
-		        'label'         => __('Collection'),
-			'description'   => __('The collection whose items\' log information will be retrieved (default: all)'),
-			'value'         => '0',
-			'order'         => 1,
-			'validators'    => array('digits'),
-			'required'      => true,
-			'multiOptions'       => $collectionOptions
-						    )
-		      );
+        'label'         => __('Collection'),
+        'description'   => __('The collection whose items\' log information will be retrieved (default: all)'),
+        'value'         => '0',
+        'order'         => 1,
+        'validators'    => array('digits'),
+        'required'      => true,
+        'multiOptions'       => $collectionOptions
+    )
+    );
 
     // User(s):
     $this->addElement('select', 'user', array(
@@ -75,45 +75,63 @@ class HistoryLog_Form_Reports extends Omeka_Form
 
     // Actions:
     $this->addElement('select', 'action', array(
-						'label'         => __('Action'),
-						'description'   => __('Logged curatorial actions to retrieve in this report (default: all)'),
-						'value'         => '0',
-						'validators'    => array('alnum'),
-
-						'order'         => 3,
-						'required'      => true,
-						'multiOptions'  => $actionOptions
-						)
-		      );
+        'label'         => __('Action'),
+        'description'   => __('Logged curatorial actions to retrieve in this report (default: all)'),
+        'value'         => '0',
+        'validators'    => array('alnum'),
+        'order'         => 3,
+        'required'      => true,
+        'multiOptions'  => $actionOptions
+    )
+    );
 
     // Dates:
     $this->addElement('text', 'date-start', array(
-						  'label'         => __('Start Date:'),
-						  'description'   => __('The earliest date from which to retrieve logs'),
-						  'value'         => 'YYYY-MM-DD',
-						  'order'         => 4,
-						  'style'          => '    max-width: 120px;',
-						  'required'      => false,
-						  'validators'    => array(array("Date",false,array('format'=>'yyyy-mm-dd')))
-						  )
-		      );
+        'label'         => __('Start Date:'),
+        'description'   => __('The earliest date from which to retrieve logs'),
+        'value'         => 'YYYY-MM-DD',
+        'order'         => 4,
+        'style'          => 'max-width: 120px;',
+        'required'      => false,
+        'validators'    => array(array("Date",false,array('format'=>'yyyy-mm-dd')))
+    )
+    );
+
     $this->addElement('text', 'date-end', array(
-						'label'         => __('End Date:'),
-						'description'   => __('The latest date from which to retrieve logs'),
-						'value'         => 'yyyy-mm-dd',
-						'order'         => 5,'style'          => '    max-width: 120px;',
-						'required'      => false,
-						'validators'    => array(array("Date",false,array('format'=>'yyyy-mm-dd')))
-						)
-		      );
+        'label'         => __('End Date:'),
+        'description'   => __('The latest date from which to retrieve logs'),
+        'value'         => 'yyyy-mm-dd',
+        'order'         => 5,
+        'style'          => 'max-width: 120px;',
+        'required'      => false,
+        'validators'    => array(array("Date",false,array('format'=>'yyyy-mm-dd')))
+    )
+    );
+
+    $this->addElement('checkbox', 'submit-download', array(
+        'label'         => __('Download log as CSV file'),
+        'order'         => 6,
+        'style'          => 'max-width: 120px;',
+        'required'      => false
+    )
+    );
+
+    $this->addElement('checkbox', 'csv-headers', array(
+        'label'         => __('Include headers in csv files'),
+        'order'         => 7,
+        'style'          => 'max-width: 120px;',
+        'required'      => false
+    )
+    );
 
     // Submit:
     $this->addElement('submit', 'submit-view', array(
-						     'label' => __('View Log')
+						     'label' => __('Generate Log')
 						     ));
-    $this->addElement('submit', 'submit-download', array(
+
+/*    $this->addElement('submit', 'submit-download', array(
 							 'label' => __('Download Log')
-							 ));
+							 )); */
 
     //Display Groups:
     $this->addDisplayGroup(
@@ -173,8 +191,7 @@ class HistoryLog_Form_Reports extends Omeka_Form
 	if(!empty($_REQUEST['dateend']) && $_REQUEST['dateend'] != "yyyy-mm-dd")
 	  $timeEnd = $_REQUEST['dateend'];
 
-
-            $logTable = get_db()->getTable('HistoryLogEntry'); 
+        $logTable = get_db()->getTable('HistoryLogEntry'); 
 
 	try{
             $logEntries = $logTable->getEntries($params,$timeStart,$timeEnd);
@@ -184,18 +201,18 @@ class HistoryLog_Form_Reports extends Omeka_Form
 
 	if($style == 'html')
 	  {
-	    $logStart = "<table><tr style=\"font-weight:bold\"><td>Item Title</td><td>User</td><td>Action</td><td>Details</td><td>Date</td></tr>";
-	    $rowStart = "<tr><td>";
-	    $colSep = "</td><td>";
-	    $rowEnd = "</td></tr>";
-	    $logEnd = "</table>";
+              $logStart = "<table><tr style=\"font-weight:bold\"><td>Item Title</td><td>User</td><td>Action</td><td>Details</td><td>Date</td></tr>";
+              $rowStart = "<tr><td>";
+              $colSep = "</td><td>";
+              $rowEnd = "</td></tr>";
+              $logEnd = "</table>";
 	  } else if ($style == "csv")
 	  {
-	    $logStart = "";
-	    $rowStart = "";
-	    $colSep = ",";
-	    $rowEnd = PHP_EOL;
-	    $logEnd = "";
+              $logStart = $_REQUEST['csv-headers'] ? "Item Title,User,Action,Details,Date".PHP_EOL : "";
+              $rowStart = "";
+              $colSep = ",";
+              $rowEnd = PHP_EOL;
+              $logEnd = "";
 	  }
 
 	$log .= $logStart;
