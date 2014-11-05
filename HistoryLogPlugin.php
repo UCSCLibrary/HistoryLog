@@ -164,13 +164,17 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
       $item = $args['record'];
 
       $source = "";
-
-      if(strpos('nuxeo-link',current_url()))
-          $source = "Nuxeo";
-      else if(strpos('youtube',current_url()))
-          $source = "YouTube";
-      else if(strpos('flickr',current_url()))
-          $source = "Flickr";
+      
+      if($request = Zend_Controller_Front::getInstance()->getRequest()) {
+          if(strpos('nuxeo-link',current_url()))
+              $source = "Nuxeo";
+          else if(strpos('youtube',current_url()))
+              $source = "YouTube";
+          else if(strpos('flickr',current_url()))
+              $source = "Flickr";
+      } else {
+          $source = "background script (flickr or nuxeo)";
+      }
 
       //if it's a new item
       if( isset($args['insert']) && $args['insert'] )
