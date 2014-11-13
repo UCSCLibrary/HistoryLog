@@ -220,15 +220,15 @@ class HistoryLog_Form_Reports extends Omeka_Form
             foreach($logEntries as $logEntry)
                 { 
                     $log.= $rowStart;
-                    $log.=$logEntry->title;
+                    $log.=str_replace($colSep,'\\' . $colSep,$logEntry->title);
                     $log.=$colSep;
-                    $log.=self::_getUser($logEntry->userID);
+                    $log.=str_replace($colSep,'\\' . $colSep,self::_getUser($logEntry->userID));
                     $log.=$colSep;
-                    $log.=self::_getAction($logEntry->type);
+                    $log.=sstr_replace($colSep,'\\' . $colSep,elf::_getAction($logEntry->type));
                     $log.=$colSep;
-                    $log.=self::_getValue($logEntry->value,$logEntry->type);
+                    $log.=str_replace($colSep,'\\' . $colSep,self::_getValue($logEntry->value,$logEntry->type));
                     $log.=$colSep;
-                    $log.=self::_getDate($logEntry->time);
+                    $log.=str_replace($colSep,'\\' . $colSep,self::_getDate($logEntry->time));
                     $log.=$rowEnd;
                 
                 }
@@ -239,7 +239,6 @@ class HistoryLog_Form_Reports extends Omeka_Form
       }
     return($log);
   }
-
 
   /**
    * Retrieve possible log actions as selectable option list
