@@ -108,7 +108,7 @@ class HistoryLog_Form_Reports extends Omeka_Form
     )
     );
 
-    $this->addElement('checkbox', 'submit-download', array(
+    $this->addElement('checkbox', 'csv-download', array(
         'label'         => __('Download log as CSV file'),
         'order'         => 6,
         'style'          => 'max-width: 120px;',
@@ -138,17 +138,18 @@ class HistoryLog_Form_Reports extends Omeka_Form
 			   array(
 				 'collection',
 				 'user',
-				 'actions',
+				 'action',
 				 'date-start',
-				 'date-end'
+				 'date-end',
+                                 'csv-download',
+				 'csv-headers'
 				 ),
 			   'fields'
 			   );
 
     $this->addDisplayGroup(
 			   array(
-				 'submit-view',
-				 'submit-download'
+				 'submit-view'
 				 ), 
 			   'submit_buttons',
 			   array(
