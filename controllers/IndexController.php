@@ -43,11 +43,13 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
 	    $this->getResponse()
 	      ->setHeader('Content-Disposition', 'attachment; filename=OmekaLog'.date('Y-m-d').".csv")
 	      ->setHeader('Content-type', 'application/x-pdf');
+	    $this->view->download=true;
 	    $this->view->report = HistoryLog_Form_Reports::ProcessPost('csv');
 
 	  //if we're displaying
 	  } else
 	  {
+	    $this->view->download=false;
 	    $this->view->report = HistoryLog_Form_Reports::ProcessPost();
 	  }
 
@@ -67,7 +69,7 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
    */
   private function _is_download()
   {
-    if(isset($_REQUEST['submit-download']) && $_REQUEST['submit-download'])
+    if(isset($_REQUEST['csvdownload']) && $_REQUEST['csvdownload'])
       return(true);
     else
       return(false);

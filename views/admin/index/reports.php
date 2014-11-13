@@ -7,7 +7,7 @@
  * @license http://www.gnu.org/licenses/gpl-3.0.txt GNU GPLv3
  */
 
-if(isset($_REQUEST['submit-download']) && $_REQUEST['submit-download'])
+if($download)
   {
     echo $report; 
   } else {

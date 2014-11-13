@@ -177,6 +177,9 @@ class HistoryLog_Form_Reports extends Omeka_Form
     $timeStart = null;//'1900-00-00';
     $timeEnd = null;//'2100-00-00';
 
+    if(isset($_REQUEST['csvdownload']))
+        $style='csv';
+
     if(isset($_REQUEST['action']))
         {
             $params = array();
@@ -209,7 +212,7 @@ class HistoryLog_Form_Reports extends Omeka_Form
               $logEnd = "</table>";
 	  } else if ($style == "csv")
 	  {
-              $logStart = $_REQUEST['csv-headers'] ? "Item Title,User,Action,Details,Date".PHP_EOL : "";
+              $logStart = $_REQUEST['csvheaders'] ? "Item Title,User,Action,Details,Date".PHP_EOL : "";
               $rowStart = "";
               $colSep = ",";
               $rowEnd = PHP_EOL;
@@ -225,7 +228,7 @@ class HistoryLog_Form_Reports extends Omeka_Form
                     $log.=$colSep;
                     $log.=str_replace($colSep,'\\' . $colSep,self::_getUser($logEntry->userID));
                     $log.=$colSep;
-                    $log.=sstr_replace($colSep,'\\' . $colSep,elf::_getAction($logEntry->type));
+                    $log.=str_replace($colSep,'\\' . $colSep,self::_getAction($logEntry->type));
                     $log.=$colSep;
                     $log.=str_replace($colSep,'\\' . $colSep,self::_getValue($logEntry->value,$logEntry->type));
                     $log.=$colSep;
