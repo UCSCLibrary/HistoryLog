@@ -177,9 +177,6 @@ class HistoryLog_Form_Reports extends Omeka_Form
     $timeStart = null;//'1900-00-00';
     $timeEnd = null;//'2100-00-00';
 
-    if(isset($_REQUEST['csvdownload']))
-        $style='csv';
-
     if(isset($_REQUEST['action']))
         {
             $params = array();
