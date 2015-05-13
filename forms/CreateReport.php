@@ -289,23 +289,20 @@ class HistoryLog_Form_Reports extends Omeka_Form
     try{
       $users = get_records('User',array('role'=>'super'),'0');
       foreach($users as $user)
-	{
-	  $options[$user->id]=$user->name." (super user)";
-	}
-      return($options);
+          $options[$user->id]=$user->name." (super user)";
 
       $users = get_records('User',array('role'=>'admin'),'0');
       foreach($users as $user)
-	{
-	  $options[$user->id]=$user->name." (administrator)";
-	}
-      return($options);
+          $options[$user->id]=$user->name." (administrator)";
 
       $users = get_records('User',array('role'=>'contributor'),'0');
       foreach($users as $user)
-	{
-	  $options[$user->id]=$user->name." (contributor)";
-	}
+          $options[$user->id]=$user->name." (contributor)";
+
+      $users = get_records('User',array('role'=>'researcher'),'0');
+      foreach($users as $user)
+          $options[$user->id]=$user->name." (researcher)";
+      
     }catch(Exception $e){
       throw($e);
     }
