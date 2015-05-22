@@ -32,7 +32,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 			      'before_delete_item',
 			      'admin_items_show',
 			      'admin_head',
-                  'export'
+			      'export'
 			      );
   
     /**
@@ -192,8 +192,10 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     public function hookExport($args)
     {
         $service = $args['service'];
-        foreach($args['record'] as $item)
-            $this->_logItem($item,'exported',$service);
+        foreach($args['records'] as $id=>$value){
+	  $item = get_record_by_id('Item',$id);
+	  $this->_logItem($item,'exported',$service);
+	}
     }
 
     /**
