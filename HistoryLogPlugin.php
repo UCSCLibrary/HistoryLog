@@ -31,7 +31,8 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 			      'define_acl',
 			      'before_delete_item',
 			      'admin_items_show',
-			      'admin_head'
+			      'admin_head',
+                  'export'
 			      );
   
     /**
@@ -188,6 +189,13 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 	} 
     }
 
+    public function hookExport($args)
+    {
+        $service = $args['service'];
+        foreach($args['record'] as $item)
+            $this->_logItem($item,'exported',$service);
+    }
+
     /**
      * When an item is deleted, log the event.
      * 
@@ -235,6 +243,8 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     private function _logItem($item,$type,$value)
     {
+        if(is_numeric($item))
+            $item = get_record_by_id('Item',$item);
         require_once(dirname(__FILE__).'/models/HistoryLogEntry.php');
         //die('test');
         $logEntry = new HistoryLogEntry();
