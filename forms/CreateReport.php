@@ -49,6 +49,9 @@ class HistoryLog_Form_Reports extends Omeka_Form
       throw $e;
     }
 
+    if(version_compare(OMEKA_VERSION,'2.2.1') >= 0)
+        $this->addElement('hash','history_log_token');
+
     // Collection:
     $this->addElement('select', 'collection', array(
         'label'         => __('Collection'),
