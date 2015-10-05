@@ -19,22 +19,22 @@
  */
 class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 {
-  
+    
     /**
      * @var array Hooks for the plugin.
      */
     protected $_hooks = array(
-			      'install',
-			      'uninstall',
-			      'after_save_item',
-			      'before_save_item',
-			      'define_acl',
-			      'before_delete_item',
-			      'admin_items_show',
-			      'admin_head',
-			      'export'
-			      );
-  
+	'install',
+	'uninstall',
+	'after_save_item',
+	'before_save_item',
+	'define_acl',
+	'before_delete_item',
+	'admin_items_show',
+	'admin_head',
+	'export',
+    );
+    
     /**
      * @var array Filters for the plugin.
      */
@@ -48,7 +48,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     public function hookDefineAcl($args)
     {
-      $args['acl']->addResource('HistoryLog_Index');
+        $args['acl']->addResource('HistoryLog_Index');
     }
 
     /**
@@ -58,7 +58,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     public function hookAdminHead()
     {
-      queue_js_file('HistoryLog');
+        queue_js_file('HistoryLog');
     }
 
     /**
@@ -69,13 +69,13 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     public function filterAdminNavigationMain($nav)
     {
-      $nav[] = array(
-		     'label' => __('Item History Logs'),
-		     'uri' => url('history-log/index/reports'),
-		     'resource' => 'HistoryLog_Index',
-		     'privilege' => 'index'
-		     );
-      return $nav;
+        $nav[] = array(
+	    'label' => __('Item History Logs'),
+	    'uri' => url('history-log/index/reports'),
+	    'resource' => 'HistoryLog_Index',
+	    'privilege' => 'index'
+	);
+        return $nav;
     }
 
     /**
@@ -87,8 +87,8 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     public function hookInstall()
     {
 
-      try{
-	$sql = "
+        try{
+	    $sql = "
             CREATE TABLE IF NOT EXISTS `{$this->_db->HistoryLogEntry}` (
                 `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
                 `title` text,
@@ -100,10 +100,10 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
                 `value` text,
                 PRIMARY KEY (`id`)
             ) ENGINE=MyISAM DEFAULT CHARSET=utf8;";
-	$this->_db->query($sql);
-      }catch(Exception $e) {
-	throw $e; 
-      }
+	    $this->_db->query($sql);
+        }catch(Exception $e) {
+	    throw $e; 
+        }
 
     }
 
@@ -115,13 +115,13 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     public function hookUninstall()
     {
-      try{
-	$db = get_db();
-	$sql = "DROP TABLE IF EXISTS `$db->HistoryLogEntry` ";
-	$db->query($sql);
-      }catch(Exception $e) {
-	throw $e;	
-      }
+        try{
+	    $db = get_db();
+	    $sql = "DROP TABLE IF EXISTS `$db->HistoryLogEntry` ";
+	    $db->query($sql);
+        }catch(Exception $e) {
+	    throw $e;	
+        }
     }
 
     /**
@@ -134,22 +134,22 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     public function hookBeforeSaveItem($args)
     {
-      $item = $args['record'];
-      //if it's not a new item, check for changes
-      if( empty($args['insert']) )
+        $item = $args['record'];
+        //if it's not a new item, check for changes
+        if( empty($args['insert']) )
 	{
-	  try{
-	    $changedElements = $this->_findChanges($item);
+	    try{
+	        $changedElements = $this->_findChanges($item);
 
-	    //log item update for each changed elements
-	    if($this->_findChanges($item)) {
-	      $this->_logItem($item,'updated',serialize($changedElements));
-	    } else {
-	      //TODO still do updates here
+	        //log item update for each changed elements
+	        if($this->_findChanges($item)) {
+	            $this->_logItem($item,'updated',serialize($changedElements));
+	        } else {
+	            //TODO still do updates here
+	        }
+	    }catch(Exception $e) {
+	        throw $e;
 	    }
-	  }catch(Exception $e) {
-	    throw $e;
-	  }
 	}
     }
 
@@ -162,30 +162,30 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     public function hookAfterSaveItem($args)
     {
-      $item = $args['record'];
+        $item = $args['record'];
 
-      $source = "";
-      
-      if($request = Zend_Controller_Front::getInstance()->getRequest()) {
-          if(strpos('nuxeo-link',current_url()))
-              $source = "Nuxeo";
-          else if(strpos('youtube',current_url()))
-              $source = "YouTube";
-          else if(strpos('flickr',current_url()))
-              $source = "Flickr";
-      } else {
-          $source = "background script (flickr or nuxeo)";
-      }
+        $source = "";
+        
+        if($request = Zend_Controller_Front::getInstance()->getRequest()) {
+            if(strpos('nuxeo-link',current_url()))
+                $source = "Nuxeo";
+            else if(strpos('youtube',current_url()))
+                $source = "YouTube";
+            else if(strpos('flickr',current_url()))
+                $source = "Flickr";
+        } else {
+            $source = "background script (flickr or nuxeo)";
+        }
 
-      //if it's a new item
-      if( isset($args['insert']) && $args['insert'] )
+        //if it's a new item
+        if( isset($args['insert']) && $args['insert'] )
 	{
-	  try{
-	    //log new item
-	    $this->_logItem($item,'created',$source);
-	  }catch(Exception $e) {
-	    throw $e;
-	  }
+	    try{
+	        //log new item
+	        $this->_logItem($item,'created',$source);
+	    }catch(Exception $e) {
+	        throw $e;
+	    }
 	} 
     }
 
@@ -193,8 +193,8 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     {
         $service = $args['service'];
         foreach($args['records'] as $id=>$value){
-	  $item = get_record_by_id('Item',$id);
-	  $this->_logItem($item,'exported',$service);
+	    $item = get_record_by_id('Item',$id);
+	    $this->_logItem($item,'exported',$service);
 	}
     }
 
@@ -206,12 +206,12 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     public function hookBeforeDeleteItem($args)
     {
-      $item = $args['record'];
-      try{
-	$this->_logItem($item,'deleted',null);
-      }catch(Exception $e) {
-	throw $e; 
-      }
+        $item = $args['record'];
+        try{
+	    $this->_logItem($item,'deleted',null);
+        }catch(Exception $e) {
+	    throw $e; 
+        }
     }
 
 
@@ -224,16 +224,22 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     public function hookAdminItemsShow($args)
     {
-      
-      $item = $args['item'];
-      $view = $args['view'];
-      try{
-	echo($view->showlog($item->id,5));
-      }catch(Exception $e) {
-	throw $e; 
-      }
-    }
+        $item = $args['item'];
+        $view = $args['view'];
 
+        if(plugin_is_active('ExhibitBuilder')){
+            $exhibits = get_db()->getTable('Exhibit')->findAll();
+            foreach($exhibits as $exhibit){
+                if($exhibit->hasItem($args['item']))
+                    echo('<h4 class="appears-in-exhibit">This item appears in the exhibit "'.$exhibit->title.'"</h4>');
+            } 
+        }
+        try{
+	    echo($view->showlog($item->id,5));
+        }catch(Exception $e) {
+	    throw $e; 
+        }
+    }
 
     /**
      * Create a new log entry 
@@ -251,45 +257,45 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         //die('test');
         $logEntry = new HistoryLogEntry();
 
-      $currentUser = current_user();
-      
-      $collectionID = $item->collection_id;
-      if(!isset($collectionID))
-	$collectionID = 0;
+        $currentUser = current_user();
+        
+        $collectionID = $item->collection_id;
+        if(!isset($collectionID))
+	    $collectionID = 0;
 
-      if(is_null($currentUser))
-	throw new Exception('Could not retrieve user info');
+        if(is_null($currentUser))
+	    throw new Exception('Could not retrieve user info');
 
-      $title="Untitled";
-      try{
-	$title=$this->_getTitle($item->id);
-      }catch(Exception $e) {
-	throw $e;
-      }
-      
-      $logEntry->itemID = $item->id;
-      $logEntry->title = $title;;
-      $logEntry->collectionID = $collectionID;
-      $logEntry->userID = $currentUser->id;
-      $logEntry->type = $type;
-      $logEntry->value = $value;
+        $title="Untitled";
+        try{
+	    $title=$this->_getTitle($item->id);
+        }catch(Exception $e) {
+	    throw $e;
+        }
+        
+        $logEntry->itemID = $item->id;
+        $logEntry->title = $title;;
+        $logEntry->collectionID = $collectionID;
+        $logEntry->userID = $currentUser->id;
+        $logEntry->type = $type;
+        $logEntry->value = $value;
 
-/*      $values = array (
-		       'itemID'=>$item->id,
-		       'title'=>$title,
-		       'collectionID'=>$collectionID,
-		       'userID' => $currentUser->id,
-		       'type' => $type,
-		       'value' => $value
-		       );*/
-      try{
-          $logEntry->save();
-          //$db = get_db();
-          //$db->insert('ItemHistoryLog',$values);
-      }catch(Exception $e) {
-	throw $e;
-      }
-    
+        /*      $values = array (
+	   'itemID'=>$item->id,
+	   'title'=>$title,
+	   'collectionID'=>$collectionID,
+	   'userID' => $currentUser->id,
+	   'type' => $type,
+	   'value' => $value
+	   );*/
+        try{
+            $logEntry->save();
+            //$db = get_db();
+            //$db->insert('ItemHistoryLog',$values);
+        }catch(Exception $e) {
+	    throw $e;
+        }
+        
     }
 
     /**
@@ -300,55 +306,55 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     private function _findChanges($item)
     {
-      if(!isset($item->Elements))
-	return false;
-      $newElements = $item->Elements;
-      
-      $changedElements = array();
-      try{
-	$oldItem = get_record_by_id('Item',$item->id);
-      }catch(Exception $e) {
-	throw $e;
-      }
-    
+        if(!isset($item->Elements))
+	    return false;
+        $newElements = $item->Elements;
+        
+        $changedElements = array();
+        try{
+	    $oldItem = get_record_by_id('Item',$item->id);
+        }catch(Exception $e) {
+	    throw $e;
+        }
+        
 
-      foreach ($newElements as $newElementID => $newElementTexts)
+        foreach ($newElements as $newElementID => $newElementTexts)
 	{
-	  $flag=false;
-	  
-	  try{
-	    $element = get_record_by_id('Element',$newElementID);
-	    $oldElementTexts =  $oldItem->getElementTextsByRecord($element);
-	  }catch(Exception $e) {
-	    throw $e; 	
-	  }	  	  	  
+	    $flag=false;
+	    
+	    try{
+	        $element = get_record_by_id('Element',$newElementID);
+	        $oldElementTexts =  $oldItem->getElementTextsByRecord($element);
+	    }catch(Exception $e) {
+	        throw $e; 	
+	    }	  	  	  
 
-	  $oldETextsArray = array();
-	  foreach($oldElementTexts as $oldElementText)
+	    $oldETextsArray = array();
+	    foreach($oldElementTexts as $oldElementText)
 	    {
-	      $oldETextsArray[] = $oldElementText['text'];
+	        $oldETextsArray[] = $oldElementText['text'];
 	    }
-	  
-	  $i = 0;
-	  foreach ($newElementTexts as $newElementText)
+	    
+	    $i = 0;
+	    foreach ($newElementTexts as $newElementText)
 	    {
-	      if($newElementText['text'] !== "")
+	        if($newElementText['text'] !== "")
 		{
-		  $i++;
-		  
-		  if(!in_array($newElementText['text'],$oldETextsArray))
-		    $flag=true;
+		    $i++;
+		    
+		    if(!in_array($newElementText['text'],$oldETextsArray))
+		        $flag=true;
 		}
 	    }
-	  if($i !== count($oldETextsArray))
-	    $flag=true;
+	    if($i !== count($oldETextsArray))
+	        $flag=true;
 
-	  if($flag)
-	    $changedElements[]=$newElementID;
-	  
+	    if($flag)
+	        $changedElements[]=$newElementID;
+	    
 	}
-      
-      return $changedElements;
+        
+        return $changedElements;
     }
 
     /**
@@ -359,22 +365,22 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     private function _getTitle($itemID)
     {
-      if(!is_numeric($itemID))
-	throw new Exception('Could not retrieve Item ID');
+        if(!is_numeric($itemID))
+	    throw new Exception('Could not retrieve Item ID');
 
-      try{
-	$item = get_record_by_id('Item',$itemID);
-	$titles = $item->getElementTexts("Dublin Core","Title");
-      }catch(Exception $e) {
-	throw $e;
-      }
+        try{
+	    $item = get_record_by_id('Item',$itemID);
+	    $titles = $item->getElementTexts("Dublin Core","Title");
+        }catch(Exception $e) {
+	    throw $e;
+        }
 
-      if(isset($titles[0]))
-	$title = $titles[0];
-      else
-	$title = "untitled / title unknown";
+        if(isset($titles[0]))
+	    $title = $titles[0];
+        else
+	    $title = "untitled / title unknown";
 
-      return $title;
+        return $title;
     }
 
 
