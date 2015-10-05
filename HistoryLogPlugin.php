@@ -31,6 +31,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 	'define_acl',
 	'before_delete_item',
 	'admin_items_show',
+        'admin_items_browse_simple_each',
 	'admin_head',
 	'export',
     );
@@ -240,6 +241,26 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 	    throw $e; 
         }
     }
+
+
+    /**
+     * Show the Exhibits that each item is included in on the Item Browse page
+     * 
+     * @param array $args An array of parameters passed by the hook
+     * @return void
+     */
+    public function hookAdminItemsBrowseSimpleEach($args)
+    {
+        $item = $args['item'];
+        if(plugin_is_active('ExhibitBuilder')){
+            $exhibits = get_db()->getTable('Exhibit')->findAll();
+            foreach($exhibits as $exhibit){
+                if($exhibit->hasItem($item))
+                    echo('<p class="appears-in-exhibit">Appears in Exhibit: '.$exhibit->title.'</p>');
+            } 
+        }
+    }
+
 
     /**
      * Create a new log entry 
