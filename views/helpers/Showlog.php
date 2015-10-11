@@ -33,10 +33,10 @@ class HistoryLog_View_Helper_Showlog extends Zend_View_Helper_Abstract
      */
     public function showlog($item, $limit = 5)
     {
-        $itemID = is_object($item) ? $item->id : $item;
+        $itemId = is_object($item) ? $item->id : $item;
 
         $params = array(
-            'itemID' => $itemID,
+            'item_id' => $itemId,
         );
 
         $markup = '';
@@ -44,7 +44,7 @@ class HistoryLog_View_Helper_Showlog extends Zend_View_Helper_Abstract
         $logEntries = $this->_table->findBy($params, $limit);
         if (!empty($logEntries)) {
             $markup = $this->view->partial('common/showlog.php', array(
-                'itemID' => $itemID,
+                'itemId' => $itemId,
                 'limit' => $limit,
                 'logEntries' => $logEntries,
             ));

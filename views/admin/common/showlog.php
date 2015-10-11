@@ -18,10 +18,10 @@ $elementName = 'Log';
                 foreach ($logEntries as $logEntry):
                 ?>
                 <tr>
-                    <td><?php echo $logEntry->time; ?></td>
-                    <td><?php echo $logEntry->displayUsername(); ?></td>
-                    <td><?php echo $logEntry->type; ?></td>
-                    <td><?php echo $logEntry->displayValue(); ?></td>
+                    <td><?php echo $logEntry->added; ?></td>
+                    <td><?php echo $logEntry->displayUser(); ?></td>
+                    <td><?php echo $logEntry->action; ?></td>
+                    <td><?php echo $logEntry->displayChange(); ?></td>
                 </tr>
                 <?php
                 endforeach;
@@ -29,7 +29,7 @@ $elementName = 'Log';
                 ?>
                 <tr>
                     <td>
-                        <a href="<?php echo $this->url('history-log/log/show/item/' . $itemID); ?>">
+                        <a href="<?php echo $this->url('history-log/log/show/item/' . $itemId); ?>">
                             <strong>See more</strong>
                         </a>
                     </td>

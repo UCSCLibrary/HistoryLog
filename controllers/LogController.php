@@ -25,6 +25,6 @@ class HistoryLog_LogController extends Omeka_Controller_AbstractActionController
         if (empty($item)) {
             $flashMessenger->addMessage('Item not selected.', 'error');
         }
-        $this->view->itemID = $item;
+        $this->view->itemId = $item;
     }
 }

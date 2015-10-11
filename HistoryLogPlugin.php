@@ -23,6 +23,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     protected $_hooks = array(
         'install',
+        'upgrade',
         'uninstall',
         'define_acl',
         'before_save_item',
@@ -52,18 +53,93 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
             $sql = "
             CREATE TABLE IF NOT EXISTS `{$this->_db->HistoryLogEntry}` (
                 `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-                `title` text,
-                `itemID` int(10) NOT NULL,
-                `collectionID` int(10) NOT NULL,
-                `userID` int(10) NOT NULL,
-                `time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                `type` text,
-                `value` text,
-                PRIMARY KEY (`id`)
-            ) ENGINE=MyISAM DEFAULT CHARSET=utf8;";
+                `item_id` int(10) NOT NULL,
+                `collection_id` int(10) NOT NULL,
+                `user_id` int(10) NOT NULL,
+                `action` enum('created', 'imported', 'updated', 'exported', 'deleted') NOT NULL,
+                `change` text collate utf8_unicode_ci NOT NULL,
+                `added` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `title` text COLLATE utf8_unicode_ci,
+                PRIMARY KEY (`id`),
+                KEY (`item_id`),
+                KEY (`change` (50)),
+                KEY (`added`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;";
             $this->_db->query($sql);
         } catch(Exception $e) {
             throw $e;
+        }
+    }
+
+    /**
+     * Upgrade the plugin.
+     */
+    public function hookUpgrade($args)
+    {
+        $oldVersion = $args['old_version'];
+        $newVersion = $args['new_version'];
+        $db = $this->_db;
+
+        if (version_compare($oldVersion, '2.4', '<')) {
+            // TODO Check if the structure is already upgraded in case of a bug.
+            // Reorder columns and change name of columns "type" to "action".,
+            // "value" to "change" and "time" to "added".
+            $sql = "
+                ALTER TABLE `{$db->HistoryLogEntry}`
+                CHANGE `itemID` `item_id` int(10) NOT NULL AFTER `id`,
+                CHANGE `collectionID` `collection_id` int(10) NOT NULL AFTER `item_id`,
+                CHANGE `userID` `user_id` int(10) NOT NULL AFTER `collection_id`,
+                CHANGE `type` `action` enum('created', 'imported', 'updated', 'exported', 'deleted') NOT NULL AFTER `user_id`,
+                CHANGE `value` `change` text collate utf8_unicode_ci NOT NULL AFTER `action`,
+                CHANGE `time` `added` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `change`,
+                CHANGE `title` `title` text COLLATE utf8_unicode_ci AFTER `added`,
+                ADD INDEX (`item_id`),
+                ADD INDEX (`change` (50)),
+                ADD INDEX (`added`),
+                ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+            ";
+            $db->query($sql);
+
+            // Convert serialized values into standard fields.
+            // Get current serialized values.
+            $table = $db->getTable('HistoryLogEntry');
+            $alias = $table->getTableAlias();
+            $select = $table->getSelect();
+            $select->reset(Zend_Db_Select::COLUMNS);
+            $select->from(array(), array(
+                $alias . '.id',
+                $alias . '.change',
+            ));
+            $select->where($alias . '.change LIKE "a:%;}"');
+            $result = $table->fetchAll($select);
+
+            if ($result) {
+                // Prepare the sql for update.
+                $sql = "
+                    UPDATE `{$db->HistoryLogEntry}`
+                    SET `change` = ?
+                    WHERE `id` = ?;
+                ";
+                try {
+                    foreach ($result as $key => $value) {
+                        $id = $value['id'];
+                        $change = $value['change'];
+                        // Check if "change" is empty or a string that isn't serialized.
+                        // Should not go here.
+                        if (empty($change) || @unserialize($change) === false) {
+                            continue;
+                        }
+                        $change = unserialize($change);
+                        $change = '[ ' . implode(' ', $change) . ' ]';
+                        $db->query($sql, array($change, $id));
+                    }
+                    $msg = sprintf('Updated %d / %d serialized history log entries.', $key + 1, count($result));
+                    _log($msg);
+                } catch (Exception $e) {
+                    $msg = sprintf('Updated %d / %d serialized history log entries.', $key, count($result));
+                    throw new Exception($e->getMessage() . "\n" . $msg);
+                }
+            }
         }
     }
 
@@ -112,7 +188,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 
                 // Log item update for each changed elements.
                 if ($changedElements) {
-                    $this->_logItem($item, 'updated', serialize($changedElements));
+                    $this->_logItem($item, 'updated', $changedElements);
                 } else {
                     //TODO still do updates here
                 }
@@ -160,15 +236,6 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         }
     }
 
-    public function hookExport($args)
-    {
-        $service = $args['service'];
-        foreach ($args['records'] as $id => $value) {
-            $item = get_record_by_id('Item', $id);
-            $this->_logItem($item, 'exported', $service);
-        }
-    }
-
     /**
      * When an item is deleted, log the event.
      *
@@ -182,6 +249,14 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
             $this->_logItem($item, 'deleted', null);
         } catch(Exception $e) {
             throw $e;
+        }
+    }
+
+    public function hookExport($args)
+    {
+        $service = $args['service'];
+        foreach ($args['records'] as $id => $value) {
+            $this->_logRecord($id, 'exported', $service);
         }
     }
 
@@ -206,7 +281,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
             }
         }
         try {
-            echo $view->showlog($item->id, 5);
+            echo $view->showlog($item, 5);
         } catch(Exception $e) {
             throw $e;
         }
@@ -259,14 +334,15 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     }
 
     /**
-     * Create a new log entry
+     * Create a new history log entry.
      *
-     * @param Object|integer $item The Omeka item to log
-     * @param string $type The type of event to log (e.g. "create", "update")
-     * @param string $value An extra piece of type specific data for the log
+     * @param Object|integer $item The Omeka item to log.
+     * @param string $action The type of event to log (e.g. "created"...).
+     * @param string|array $change An extra piece of type specific data for the
+     * log.
      * @return void
      */
-    private function _logItem($item, $type, $value)
+    private function _logItem($item, $action, $change)
     {
         if (is_numeric($item)) {
             $item = get_record_by_id('Item', $item);
@@ -276,21 +352,21 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 
         $currentUser = current_user();
         if (is_null($currentUser)) {
-            throw new Exception('Could not retrieve user info');
+            throw new Exception('Could not retrieve user info.');
         }
 
         try {
             // This is a required field.
-            $logEntry->itemID = $item->id;
+            $logEntry->item_id = $item->id;
 
+            $collectionId = (integer) $item->collection_id;
             $title = $logEntry->displayCurrentTitle();
-            $collectionID = (integer) $item->collection_id;
 
+            $logEntry->collection_id = $collectionId;
+            $logEntry->user_id = $currentUser->id;
+            $logEntry->action = $action;
+            $logEntry->change = $change;
             $logEntry->title = $title;
-            $logEntry->collectionID = $collectionID;
-            $logEntry->userID = $currentUser->id;
-            $logEntry->type = $type;
-            $logEntry->value = $value;
 
             $logEntry->save();
         } catch(Exception $e) {
