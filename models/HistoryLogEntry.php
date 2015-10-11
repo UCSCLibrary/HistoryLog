@@ -51,4 +51,92 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
      */
     public $value;
 
+    /**
+     * Retrieve username of an omeka user by user ID.
+     *
+     * @return string $username The username of the Omeka user
+     */
+    public function displayUsername()
+    {
+        $user = get_record_by_id('User', $this->userID);
+        if (empty($user)) {
+            return 'No user / deleted user';
+        }
+        return $user->name . ' (' . $user->username . ')';
+    }
+
+    /**
+     * Retrieve "value" parameter for the displayable form.
+     *
+     * @return string $value The value is human readable form.
+     */
+    public function displayValue()
+    {
+        switch ($this->type) {
+            case 'created':
+                if (!empty($this->value)) {
+                    return 'Imported from ' . $this->value;
+                }
+                else {
+                    return 'Created manually by user';
+                }
+                break;
+
+            case 'updated':
+                $update = unserialize($this->value);
+                if (empty($update)) {
+                    $rv = 'File upload/edit';
+                    return $rv;
+                }
+                $rv = 'Elements altered: ';
+
+                $flag = false;
+                foreach ($update as $elementID) {
+                    if ($flag) {
+                        $rv .= ', ';
+                    }
+                    $flag = true;
+                    $element = get_record_by_id('Element', $elementID);
+                    $rv .= $element->name;
+                }
+                return $rv;
+
+            case 'exported':
+                if (!empty($this->value)) {
+                    return 'Exported to: ' . $this->value;
+                }
+                else {
+                    return '';
+                }
+                break;
+
+            case 'deleted':
+                return '';
+                break;
+        }
+    }
+
+    /**
+     * Retrieves the current title.
+     *
+     * @return string $title The Dublin Core title of the item.
+     */
+    public function displayCurrentTitle()
+    {
+        if (empty($this->itemID)) {
+            throw new Exception('Could not retrieve Item ID');
+        }
+
+        $item = get_record_by_id('Item', $this->itemID);
+        if (empty($item)) {
+            return 'deleted item';
+        }
+
+        $titles = $item->getElementTexts('Dublin Core', 'Title');
+        $title = isset($titles[0])
+            ? $titles[0]
+            : 'untitled / title unknown';
+
+        return $title;
+    }
 }

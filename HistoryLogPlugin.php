@@ -24,14 +24,14 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     protected $_hooks = array(
         'install',
         'uninstall',
-        'after_save_item',
-        'before_save_item',
         'define_acl',
+        'before_save_item',
+        'after_save_item',
         'before_delete_item',
+        'export',
         'admin_items_show',
         'admin_items_browse_simple_each',
         'admin_head',
-        'export',
     );
 
     /**
@@ -40,44 +40,6 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     protected $_filters = array(
         'admin_navigation_main',
     );
-
-    /**
-     * Define the plugin's access control list.
-     *
-     * @param array $args Parameters supplied by the hook
-     * @return void
-     */
-    public function hookDefineAcl($args)
-    {
-        $args['acl']->addResource('HistoryLog_Index');
-    }
-
-    /**
-     * Load the plugin javascript when admin section loads
-     *
-     * @return void
-     */
-    public function hookAdminHead()
-    {
-        queue_js_file('HistoryLog');
-    }
-
-    /**
-     * Add the History Log link to the admin main navigation.
-     *
-     * @param array $nav Navigation array.
-     * @return array $filteredNav Filtered navigation array.
-     */
-    public function filterAdminNavigationMain($nav)
-    {
-        $nav[] = array(
-            'label' => __('Item History Logs'),
-            'uri' => url('history-log/index/reports'),
-            'resource' => 'HistoryLog_Index',
-            'privilege' => 'index',
-        );
-        return $nav;
-    }
 
     /**
      * When the plugin installs, create the database tables to store the logs.
@@ -122,6 +84,17 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     }
 
     /**
+     * Define the plugin's access control list.
+     *
+     * @param array $args Parameters supplied by the hook
+     * @return void
+     */
+    public function hookDefineAcl($args)
+    {
+        $args['acl']->addResource('HistoryLog_Index');
+    }
+
+    /**
      * When an item is saved, determine whether it is a new item or an item
      * update. If it is an update, log the event. Otherwise, wait until after
      * the save.
@@ -138,7 +111,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
                 $changedElements = $this->_findChanges($item);
 
                 // Log item update for each changed elements.
-                if ($this->_findChanges($item)) {
+                if ($changedElements) {
                     $this->_logItem($item, 'updated', serialize($changedElements));
                 } else {
                     //TODO still do updates here
@@ -259,9 +232,36 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     }
 
     /**
+     * Load the plugin javascript when admin section loads
+     *
+     * @return void
+     */
+    public function hookAdminHead()
+    {
+        queue_js_file('HistoryLog');
+    }
+
+    /**
+     * Add the History Log link to the admin main navigation.
+     *
+     * @param array $nav Navigation array.
+     * @return array $filteredNav Filtered navigation array.
+     */
+    public function filterAdminNavigationMain($nav)
+    {
+        $nav[] = array(
+            'label' => __('Item History Logs'),
+            'uri' => url('history-log/index/reports'),
+            'resource' => 'HistoryLog_Index',
+            'privilege' => 'index',
+        );
+        return $nav;
+    }
+
+    /**
      * Create a new log entry
      *
-     * @param Object $item The Omeka item to log
+     * @param Object|integer $item The Omeka item to log
      * @param string $type The type of event to log (e.g. "create", "update")
      * @param string $value An extra piece of type specific data for the log
      * @return void
@@ -272,36 +272,26 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
             $item = get_record_by_id('Item', $item);
         }
 
-        require_once (dirname(__FILE__) . '/models/HistoryLogEntry.php');
-        //die('test');
         $logEntry = new HistoryLogEntry();
 
         $currentUser = current_user();
-
-        $collectionID = $item->collection_id;
-        if (!isset($collectionID)) {
-            $collectionID = 0;
-        }
-
         if (is_null($currentUser)) {
             throw new Exception('Could not retrieve user info');
         }
 
-        $title = 'Untitled';
         try {
-            $title = $this->_getTitle($item->id);
-        } catch(Exception $e) {
-            throw $e;
-        }
+            // This is a required field.
+            $logEntry->itemID = $item->id;
 
-        $logEntry->title = $title;
-        $logEntry->itemID = $item->id;
-        $logEntry->collectionID = $collectionID;
-        $logEntry->userID = $currentUser->id;
-        $logEntry->type = $type;
-        $logEntry->value = $value;
+            $title = $logEntry->displayCurrentTitle();
+            $collectionID = (integer) $item->collection_id;
 
-        try {
+            $logEntry->title = $title;
+            $logEntry->collectionID = $collectionID;
+            $logEntry->userID = $currentUser->id;
+            $logEntry->type = $type;
+            $logEntry->value = $value;
+
             $logEntry->save();
         } catch(Exception $e) {
             throw $e;
@@ -365,31 +355,4 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 
         return $changedElements;
     }
-
-    /**
-     * Retrieves the title of an item by itemID
-     *
-     * @param int $itemID The id of the item to log
-     * @return string $title The Dublin Core title of the item.
-     */
-    private function _getTitle($itemID)
-    {
-        if (!is_numeric($itemID)) {
-            throw new Exception('Could not retrieve Item ID');
-        }
-
-        try {
-            $item = get_record_by_id('Item', $itemID);
-            $titles = $item->getElementTexts('Dublin Core', 'Title');
-        } catch(Exception $e) {
-            throw $e;
-        }
-
-        $title = isset($titles[0])
-            ? $titles[0]
-            : 'untitled / title unknown';
-
-        return $title;
-    }
-
 }
