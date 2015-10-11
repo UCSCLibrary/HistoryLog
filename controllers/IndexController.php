@@ -13,6 +13,28 @@
  */
 class HistoryLog_IndexController extends Omeka_Controller_AbstractActionController
 {
+    protected $_browseRecordsPerPage = 100;
+    protected $_autoCsrfProtection = true;
+
+    public function init()
+    {
+        $this->_helper->db->setDefaultModelName('HistoryLogEntry');
+    }
+
+    /**
+     * The browse collections action.
+     *
+     */
+    public function browseAction()
+    {
+        if (!$this->_getParam('sort_field')) {
+            $this->_setParam('sort_field', 'added');
+            $this->_setParam('sort_dir', 'd');
+        }
+
+        parent::browseAction();
+    }
+
     /**
      * Display the main log report form, process it, and initiate downloads if
      * necessary.
@@ -34,7 +56,7 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
         if ($this->getRequest()->isPost() && $form->isValid($this->getRequest()->getPost())) {
             try {
                 // If we're downloading.
-                if ($this->_is_download()) {
+                if ($this->_isDownload()) {
                     $this->getResponse()
                         ->setHeader('Content-Disposition',
                             'attachment; filename=OmekaLog' . date('Y-m-d') . '.csv')
@@ -57,11 +79,11 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
     }
 
     /**
-     * Checks whether user requested a downloaded log file
+     * Checks whether user requested a downloaded log file.
      *
-     * @return bool Automatic download if true, html display if false
+     * @return bool Automatic download if true, html display if false.
      */
-    private function _is_download()
+    private function _isDownload()
     {
         return isset($_REQUEST['csvdownload']) && $_REQUEST['csvdownload'];
     }

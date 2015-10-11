@@ -1,9 +1,9 @@
 <?php
 /**
- * Item History Log
+ * History Log
  *
  * This Omeka 2.0+ plugin logs curatorial actions such as adding, deleting, or
- * modifying items.
+ * modifying items, collections and files.
  *
  * @copyright Copyright 2014 UCSC Library Digital Initiatives
  * @license http://www.gnu.org/licenses/gpl-3.0.txt GNU GPLv3
@@ -26,12 +26,15 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         'upgrade',
         'uninstall',
         'define_acl',
-        'before_save_item',
-        'after_save_item',
-        'before_delete_item',
+        'define_routes',
+        'before_save_record',
+        'after_save_record',
+        'before_delete_record',
         'export',
         'admin_items_show',
-        'admin_items_browse_simple_each',
+        'admin_collections_show',
+        'admin_files_show',
+        'admin_items_browse_detailed_each',
         'admin_head',
     );
 
@@ -53,15 +56,16 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
             $sql = "
             CREATE TABLE IF NOT EXISTS `{$this->_db->HistoryLogEntry}` (
                 `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-                `item_id` int(10) NOT NULL,
-                `collection_id` int(10) NOT NULL,
+                `record_type` enum('Item', 'Collection', 'File') NOT NULL,
+                `record_id` int(10) NOT NULL,
+                `part_of` int(10) NOT NULL DEFAULT 0,
                 `user_id` int(10) NOT NULL,
-                `action` enum('created', 'imported', 'updated', 'exported', 'deleted') NOT NULL,
+                `operation` enum('created', 'imported', 'updated', 'exported', 'deleted') NOT NULL,
                 `change` text collate utf8_unicode_ci NOT NULL,
                 `added` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 `title` text COLLATE utf8_unicode_ci,
                 PRIMARY KEY (`id`),
-                KEY (`item_id`),
+                KEY `record_type_record_id` (`record_type`, `record_id`),
                 KEY (`change` (50)),
                 KEY (`added`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;";
@@ -141,6 +145,25 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
                 }
             }
         }
+
+        if (version_compare($oldVersion, '2.5', '<')) {
+            // Allows each type of record to be logged.
+            // "record_type" can't be null, but mysql takes the first of "enum".
+            $sql = "
+                ALTER TABLE `{$db->HistoryLogEntry}`
+                ADD `record_type` enum('Item', 'Collection', 'File') NOT NULL AFTER `id`,
+                CHANGE `item_id` `record_id` int(10) NOT NULL AFTER `record_type`,
+                CHANGE `collection_id` `part_of` int(10) NOT NULL DEFAULT 0 AFTER `record_id`,
+                CHANGE `action` `operation` enum('created', 'imported', 'updated', 'exported', 'deleted') NOT NULL AFTER `user_id`,
+                DROP INDEX `item_id`,
+                DROP INDEX `change`,
+                DROP INDEX `added`,
+                ADD INDEX `record_type_record_id` (`record_type`, `record_id`),
+                ADD INDEX (`change` (50)),
+                ADD INDEX (`added`)
+            ";
+            $db->query($sql);
+        }
     }
 
     /**
@@ -171,24 +194,54 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     }
 
     /**
-     * When an item is saved, determine whether it is a new item or an item
+     * Define routes.
+     *
+     * @param Zend_Controller_Router_Rewrite $router
+     */
+    public function hookDefineRoutes($args)
+    {
+        if (!is_admin_theme()) {
+            return;
+        }
+
+        $args['router']->addRoute(
+            'history_log_record_log',
+            new Zend_Controller_Router_Route(
+                ':type/log/:id',
+                array(
+                    'module' => 'history-log',
+                    'controller' => 'log',
+                    'action' => 'log',
+                ),
+                array(
+                    'type' =>'items|collections|files',
+                    'id' => '\d+',
+        )));
+    }
+
+    /**
+     * When a record is saved, determine whether it is a new record or a record
      * update. If it is an update, log the event. Otherwise, wait until after
      * the save.
      *
      * @param array $args An array of parameters passed by the hook
      * @return void
      */
-    public function hookBeforeSaveItem($args)
+    public function hookBeforeSaveRecord($args)
     {
-        $item = $args['record'];
-        // If it's not a new item, check for changes.
+        $record = $args['record'];
+        if (!$this->_isLoggable($record)) {
+            return;
+        }
+
+        // If it's not a new record, check for changes.
         if (empty($args['insert'])) {
             try {
-                $changedElements = $this->_findChanges($item);
+                $changedElements = $this->_findChanges($record);
 
-                // Log item update for each changed elements.
+                // Log record update for each changed elements.
                 if ($changedElements) {
-                    $this->_logItem($item, 'updated', $changedElements);
+                    $this->_logRecord($record, 'updated', $changedElements);
                 } else {
                     //TODO still do updates here
                 }
@@ -199,15 +252,18 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     }
 
     /**
-     * When an item is saved, determine whether it is a new item or an item
-     * update. If it is a new item, log the event.
+     * When an record is saved, determine whether it is a new record or an
+     * update. If it is a new record, log the event.
      *
      * @param array $args An array of parameters passed by the hook
      * @return void
      */
-    public function hookAfterSaveItem($args)
+    public function hookAfterSaveRecord($args)
     {
-        $item = $args['record'];
+        $record = $args['record'];
+        if (!$this->_isLoggable($record)) {
+            return;
+        }
 
         $source = '';
 
@@ -222,14 +278,14 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
                 $source = 'Flickr';
             }
         } else {
-            $source = __('background script (flickr or nuxeo)');
+            $source = __('background script');
         }
 
-        // If it's a new item.
+        // If it's a new record.
         if (isset($args['insert']) && $args['insert']) {
             try {
-                // Log new item.
-                $this->_logItem($item, 'created', $source);
+                // Log new record.
+                $this->_logRecord($record, 'created', $source);
             } catch(Exception $e) {
                 throw $e;
             }
@@ -237,16 +293,20 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     }
 
     /**
-     * When an item is deleted, log the event.
+     * When an record is deleted, log the event.
      *
      * @param array $args An array of parameters passed by the hook.
      * @return void
      */
-    public function hookBeforeDeleteItem($args)
+    public function hookBeforeDeleteRecord($args)
     {
-        $item = $args['record'];
+        $record = $args['record'];
+        if (!$this->_isLoggable($record)) {
+            return;
+        }
+
         try {
-            $this->_logItem($item, 'deleted', null);
+            $this->_logRecord($record, 'deleted', null);
         } catch(Exception $e) {
             throw $e;
         }
@@ -256,53 +316,99 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     {
         $service = $args['service'];
         foreach ($args['records'] as $id => $value) {
-            $this->_logRecord($id, 'exported', $service);
+            $this->_logRecord(
+                array(
+                    // TODO Manage other exports.
+                    'record_type' => 'Item',
+                    'record_id' => $id,
+                ),
+                'exported',
+                $service);
         }
     }
 
     /**
-     * Show the 5 most recent events in the item's history on the item's admin
-     * page.
+     * Hook for items/show page.
      *
      * @param array $args An array of parameters passed by the hook.
      * @return void
      */
     public function hookAdminItemsShow($args)
     {
-        $item = $args['item'];
+        $args['record'] = $args['item'];
+        unset($args['item']);
+        $this->_adminRecordShow($args);
+    }
+
+    /**
+     * Hook for collections/show page.
+     *
+     * @param array $args An array of parameters passed by the hook.
+     * @return void
+     */
+    public function hookAdminCollectionsShow($args)
+    {
+        $args['record'] = $args['collection'];
+        unset($args['collection']);
+        $this->_adminRecordShow($args);
+    }
+
+    /**
+     * Hook for collections/show page.
+     *
+     * @param array $args An array of parameters passed by the hook.
+     * @return void
+     */
+    public function hookAdminFilesShow($args)
+    {
+        $args['record'] = $args['file'];
+        unset($args['file']);
+        $this->_adminRecordShow($args);
+    }
+
+    /**
+     * Helper to show the 5 most recent events in the record's history on the
+     * record's admin page.
+     *
+     * @param array $args An array of parameters passed by the hook.
+     * @return void
+     */
+    protected  function _adminRecordShow($args)
+    {
+        $record = $args['record'];
         $view = $args['view'];
 
-        if (plugin_is_active('ExhibitBuilder')) {
-            $exhibits = get_db()->getTable('Exhibit')->findAll();
-            foreach ($exhibits as $exhibit) {
-                if ($exhibit->hasItem($args['item'])) {
-                    echo '<h4 class="appears-in-exhibit">' . __('This item appears in the exhibit "%s".', $exhibit->title) . '</h4>';
-                }
-            }
-        }
         try {
-            echo $view->showlog($item, 5);
+            echo $view->showlog($record, 5);
         } catch(Exception $e) {
             throw $e;
         }
     }
 
     /**
-     * Show the Exhibits that each item is included in on the Item Browse page.
+     * Show details for each item.
      *
      * @param array $args An array of parameters passed by the hook
      * @return void
      */
-    public function hookAdminItemsBrowseSimpleEach($args)
+    public function hookAdminItemsBrowseDetailedEach($args)
     {
-        $item = $args['item'];
-        if (plugin_is_active('ExhibitBuilder')) {
-            $exhibits = get_db()->getTable('Exhibit')->findAll();
-            foreach ($exhibits as $exhibit) {
-                if ($exhibit->hasItem($item)) {
-                    echo '<p class="appears-in-exhibit">' . __('Appears in Exhibit: %s', $exhibit->title) . '</p>';
-                }
-            }
+        $record = $args['item'];
+        $view = $args['view'];
+
+        $logEntry = $this->_db->getTable('HistoryLogEntry')
+            ->findBy(
+                array(
+                    'record' => $record,
+                    'sort_field' => 'added',
+                    'sort_dir' => 'd',
+                ), 1);
+        if ($logEntry) {
+            $logEntry = reset($logEntry);
+            echo '<div class="history-log">'
+                . __('Last change on %s by %s.',
+                    $logEntry->displayAdded(), $logEntry->displayUser())
+                . '</div>';
         }
     }
 
@@ -325,7 +431,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     public function filterAdminNavigationMain($nav)
     {
         $nav[] = array(
-            'label' => __('Item History Logs'),
+            'label' => __('History Logs'),
             'uri' => url('history-log/index/reports'),
             'resource' => 'HistoryLog_Index',
             'privilege' => 'index',
@@ -334,40 +440,39 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     }
 
     /**
+     * Check if a record is loggable (item, collection, file).
+     *
+     * @param Record $record
+     * @return boolean
+     */
+    protected function _isLoggable($record)
+    {
+        return in_array(get_class($record), array('Item', 'Collection', 'File'));
+    }
+
+    /**
      * Create a new history log entry.
      *
-     * @param Object|integer $item The Omeka item to log.
-     * @param string $action The type of event to log (e.g. "created"...).
+     * @param Object $record The Omeka record to log.
+     * @param string $operation The type of event to log (e.g. "created"...).
      * @param string|array $change An extra piece of type specific data for the
      * log.
      * @return void
      */
-    private function _logItem($item, $action, $change)
+    private function _logRecord($record, $operation, $change)
     {
-        if (is_numeric($item)) {
-            $item = get_record_by_id('Item', $item);
-        }
-
-        $logEntry = new HistoryLogEntry();
-
         $currentUser = current_user();
         if (is_null($currentUser)) {
             throw new Exception(__('Could not retrieve user info.'));
         }
 
+        $logEntry = new HistoryLogEntry();
         try {
             // This is a required field.
-            $logEntry->item_id = $item->id;
-
-            $collectionId = (integer) $item->collection_id;
-            $title = $logEntry->displayCurrentTitle();
-
-            $logEntry->collection_id = $collectionId;
+            $logEntry->setRecord($record);
             $logEntry->user_id = $currentUser->id;
-            $logEntry->action = $action;
-            $logEntry->change = $change;
-            $logEntry->title = $title;
-
+            $logEntry->operation = $operation;
+            $logEntry->setChange($change);
             $logEntry->save();
         } catch(Exception $e) {
             throw $e;
@@ -375,21 +480,21 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     }
 
     /**
-     * If an item is being updated, find out which elements are being altered.
+     * If a record  is being updated, find out which elements are being altered.
      *
-     * @param Object $item The updated omeka item record
+     * @param Object $record The updated omeka record
      * @return array $changedElements An array of element IDs of altered elements
      */
-    private function _findChanges($item)
+    private function _findChanges($record)
     {
-        if (!isset($item->Elements)) {
+        if (!isset($record->Elements)) {
             return false;
         }
-        $newElements = $item->Elements;
+        $newElements = $record->Elements;
 
         $changedElements = array();
         try {
-            $oldItem = get_record_by_id('Item', $item->id);
+            $oldRecord = get_record_by_id(get_class($record), $record->id);
         } catch(Exception $e) {
             throw $e;
         }
@@ -399,7 +504,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 
             try {
                 $element = get_record_by_id('Element', $newElementID);
-                $oldElementTexts = $oldItem->getElementTextsByRecord($element);
+                $oldElementTexts = $oldRecord->getElementTextsByRecord($element);
             } catch(Exception $e) {
                 throw $e;
             }

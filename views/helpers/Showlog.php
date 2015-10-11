@@ -24,27 +24,40 @@ class HistoryLog_View_Helper_Showlog extends Zend_View_Helper_Abstract
     }
 
     /**
-     * Create html with log information for a given item.
+     * Create html with log information for a given record.
      *
-     * @param Item|int $item The item or its id to retrieve info from. It may be
+     * @param Record|array $record The record to retrieve info from.  It may be
      * deleted.
      * @param int $limit The maximum number of log entries to retrieve.
      * @return string An html table of requested log information.
      */
-    public function showlog($item, $limit = 5)
+    public function showlog($record, $limit = 10)
     {
-        $itemId = is_object($item) ? $item->id : $item;
-
-        $params = array(
-            'item_id' => $itemId,
-        );
-
         $markup = '';
+        $params = array();
+        if (is_object($record)) {
+            $params['record_type'] = get_class($record);
+            $params['record_id'] = $record->id;
+        }
+        // Check array too.
+        elseif (is_array($record) && isset($record['record_type']) && $record['record_id']) {
+            $params['record_type'] = Inflector::classify($record['record_type']);
+            $params['record_id'] = (integer) $record['record_id'];
+        }
+        // No record.
+        else {
+            return '';
+        }
+
+        // Reverse order because the most needed infos are recent ones.
+        $params['sort_field'] = 'added';
+        $params['sort_dir'] = 'd';
 
         $logEntries = $this->_table->findBy($params, $limit);
         if (!empty($logEntries)) {
             $markup = $this->view->partial('common/showlog.php', array(
-                'itemId' => $itemId,
+                'record_type' => $params['record_type'],
+                'record_id' => $params['record_id'],
                 'limit' => $limit,
                 'logEntries' => $logEntries,
             ));

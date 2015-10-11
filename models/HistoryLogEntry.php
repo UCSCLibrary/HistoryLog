@@ -13,15 +13,21 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     public $id;
 
     /**
-     * @var int The id of the Item record associated with this log entry.
+     * @var string The type of the record associated with this log entry.
      */
-    public $item_id;
+    public $record_type;
+
+    /**
+     * @var int The id of the record associated with this log entry.
+     */
+    public $record_id;
 
     /**
      * @var int The id of the Collection record in which the associated Item
-     * record was stored at the time of log entry.
+     * record was stored at the time of log entry, or the id of the Item record
+     * in which the associated File record was stored.
      */
-    public $collection_id;
+    public $part_of;
 
     /**
      * @var int The id of the User record who performed the logged action.
@@ -29,10 +35,11 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     public $user_id;
 
     /**
-     * @var string The limited list of type of action being logged: "created",
-     * "imported", "updated", "exported", "deleted".
+     * @var string The limited list of type of operation being logged:
+     * "created", "imported", "updated", "exported", "deleted".
+     * @internal Because of Zend, the reserved word "action" cannot be used.
      */
-    public $action;
+    public $operation;
 
     /**
      * @var string More information about the action being performed.
@@ -64,7 +71,31 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     private $_change;
 
     /**
-     * Sets change.
+     * Set record and associated values (collection and title).
+     */
+    public function setRecord($record)
+    {
+        $this->record_type = get_class($record);
+        $this->record_id = $record->id;
+
+        // Set collection if needed.
+        switch ($this->record_type) {
+            case 'Item':
+                $this->part_of = (integer) $record->collection_id;
+                break;
+            case 'File':
+                $this->part_of = (integer) $record->item_id;
+                break;
+            case 'Collection':
+            default:
+                $this->part_of = 0;
+        }
+
+        $this->title = $this->displayCurrentTitle();
+    }
+
+    /**
+     * Executes before the record is saved.
      *
      * @param string|array $change
      */
@@ -130,25 +161,25 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     }
 
     /**
-     * Retrieve displayable name of an action by its slug
+     * Retrieve displayable name of an operation by its slug
      *
-     * @return string User displayable action name
+     * @return string User displayable operation name
      */
-    public function displayAction()
+    public function displayOperation()
     {
-        switch ($this->action) {
+        switch ($this->operation) {
             case 'created':
-                return __('Item Created');
+                return __('Created');
             case 'imported':
-                return __('Item Imported');
+                return __('Imported');
             case 'updated':
-                return __('Item Modified');
+                return __('Updated');
             case 'exported':
-                return __('Item Exported');
+                return __('Exported');
             case 'deleted':
-                return __('Item Deleted');
+                return __('Deleted');
             default:
-                return $this->action;
+                return ucfirst($this->operation);
         }
     }
 
@@ -162,7 +193,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
         // The encoding is different depending on the type of event, so we
         // define different decoding methods for each event type.
         $change = $this->getChange();
-        switch ($this->action) {
+        switch ($this->operation) {
             case 'created':
                 return empty($change)
                     ? __('Created manually by user')
@@ -228,20 +259,20 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     /**
      * Retrieves the current title.
      *
-     * @return string The current Dublin Core title of the item if any.
+     * @return string The current Dublin Core title of the record if any.
      */
     public function displayCurrentTitle()
     {
-        if (empty($this->item_id)) {
-            throw new Exception(__('Could not retrieve Item ID'));
+        if (empty($this->record_type) || empty($this->record_id)) {
+            throw new Exception(__('Could not retrieve record.'));
         }
 
-        $item = get_record_by_id('Item', $this->item_id);
-        if (empty($item)) {
-            return __('deleted item');
+        $record = get_record_by_id($this->record_type, $this->record_id);
+        if (empty($record)) {
+            return __('Deleted %s', strtolower($this->record_type));
         }
 
-        $titles = $item->getElementTexts('Dublin Core', 'Title');
+        $titles = $record->getElementTexts('Dublin Core', 'Title');
         $title = isset($titles[0])
             ? $titles[0]
             : __('untitled / title unknown');

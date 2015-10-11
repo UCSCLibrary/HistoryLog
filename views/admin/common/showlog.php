@@ -1,11 +1,11 @@
 <?php
-$setName = __('Item Curation History');
-$elementName = __('Log');
+$title = __('Curation History');
+$subtitle = __('Last Changes for %s #%d', $record_type, $record_id);
 ?>
 <div class="element-set">
-    <h2><?php echo html_escape($setName); ?></h2>
-    <div id="<?php echo text_to_id(html_escape("item-curation-history-log")); ?>" class="element">
-        <h3><?php echo html_escape($elementName); ?></h3>
+    <h2><?php echo html_escape($title); ?></h2>
+    <div id="<?php echo text_to_id(html_escape("history-log")); ?>" class="element">
+        <h3><?php echo html_escape($subtitle); ?></h3>
         <div class="element-text">
             <table>
                  <tr>
@@ -20,7 +20,7 @@ $elementName = __('Log');
                 <tr>
                     <td><?php echo $logEntry->added; ?></td>
                     <td><?php echo $logEntry->displayUser(); ?></td>
-                    <td><?php echo $logEntry->action; ?></td>
+                    <td><?php echo $logEntry->operation; ?></td>
                     <td><?php echo $logEntry->displayChange(); ?></td>
                 </tr>
                 <?php
@@ -29,13 +29,16 @@ $elementName = __('Log');
                 ?>
                 <tr>
                     <td>
-                        <a href="<?php echo $this->url('history-log/log/show/item/' . $itemId); ?>">
+                        <a href="<?php echo url(array(
+                                    'type' => Inflector::tableize($logEntry->record_type),
+                                    'id' => $logEntry->record_id,
+                                ), 'history_log_record_log'); ?>">
                             <strong><?php echo __('See more'); ?></strong>
                         </a>
                     </td>
                 </tr>
                 <?php endif; ?>
             </table>
-        </div><!-- end element-text -->
-    </div><!-- end element -->
-</div><!-- end element-set -->
+        </div>
+    </div>
+</div>

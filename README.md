@@ -2,8 +2,8 @@ History Log (plugin for Omeka)
 ==============================
 
 [History Log] is an [Omeka] plugin that logs creation, updates, exports, and
-deletion of Omeka items and allows administrators to recall this information
-later.
+deletion of Omeka items, collection and files and allows administrators to
+recall this information later.
 
 This is not a replacement for your regular backups of the database: the content
 of changes is not saved.
