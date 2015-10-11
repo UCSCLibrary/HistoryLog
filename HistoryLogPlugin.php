@@ -133,10 +133,10 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
                         $change = '[ ' . implode(' ', $change) . ' ]';
                         $db->query($sql, array($change, $id));
                     }
-                    $msg = sprintf('Updated %d / %d serialized history log entries.', $key + 1, count($result));
+                    $msg = __('Updated %d / %d serialized history log entries.', $key + 1, count($result));
                     _log($msg);
                 } catch (Exception $e) {
-                    $msg = sprintf('Updated %d / %d serialized history log entries.', $key, count($result));
+                    $msg = __('Updated %d / %d serialized history log entries.', $key, count($result));
                     throw new Exception($e->getMessage() . "\n" . $msg);
                 }
             }
@@ -222,7 +222,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
                 $source = 'Flickr';
             }
         } else {
-            $source = 'background script (flickr or nuxeo)';
+            $source = __('background script (flickr or nuxeo)');
         }
 
         // If it's a new item.
@@ -276,7 +276,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
             $exhibits = get_db()->getTable('Exhibit')->findAll();
             foreach ($exhibits as $exhibit) {
                 if ($exhibit->hasItem($args['item'])) {
-                    echo '<h4 class="appears-in-exhibit">This item appears in the exhibit "' . $exhibit->title . '"</h4>';
+                    echo '<h4 class="appears-in-exhibit">' . __('This item appears in the exhibit "%s".', $exhibit->title) . '</h4>';
                 }
             }
         }
@@ -300,7 +300,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
             $exhibits = get_db()->getTable('Exhibit')->findAll();
             foreach ($exhibits as $exhibit) {
                 if ($exhibit->hasItem($item)) {
-                    echo '<p class="appears-in-exhibit">Appears in Exhibit: ' . $exhibit->title . '</p>';
+                    echo '<p class="appears-in-exhibit">' . __('Appears in Exhibit: %s', $exhibit->title) . '</p>';
                 }
             }
         }
@@ -352,7 +352,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 
         $currentUser = current_user();
         if (is_null($currentUser)) {
-            throw new Exception('Could not retrieve user info.');
+            throw new Exception(__('Could not retrieve user info.'));
         }
 
         try {

@@ -124,7 +124,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     {
         $user = get_record_by_id('User', $this->user_id);
         if (empty($user)) {
-            return 'No user / deleted user';
+            return __('No user / deleted user');
         }
         return $user->name . ' (' . $user->username . ')';
     }
@@ -138,15 +138,15 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     {
         switch ($this->action) {
             case 'created':
-                return 'Item Created';
+                return __('Item Created');
             case 'imported':
-                return 'Item Imported';
+                return __('Item Imported');
             case 'updated':
-                return 'Item Modified';
+                return __('Item Modified');
             case 'exported':
-                return 'Item Exported';
+                return __('Item Exported');
             case 'deleted':
-                return 'Item Deleted';
+                return __('Item Deleted');
             default:
                 return $this->action;
         }
@@ -165,17 +165,17 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
         switch ($this->action) {
             case 'created':
                 return empty($change)
-                    ? 'Created manually by user'
-                    : 'Imported from ' . $change;
+                    ? __('Created manually by user')
+                    : __('Imported from %s', $change);
 
             case 'imported':
                 return empty($change)
                     ? ''
-                    : 'Imported from: ' . $change;
+                    : __('Imported from ', $change);
 
             case 'updated':
                 if (empty($change)) {
-                    $rv = 'File upload/edit';
+                    $rv = __('File upload/edit');
                     return $rv;
                 }
                 // Check if this is a list of elements (ids) or a string.
@@ -184,7 +184,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
                 }
 
                 // Else multiple values, so presume all  numeric.
-                $rv = 'Metadata altered: ';
+                $rv = __('Metadata altered:') . ' ';
                 $flag = false;
                 foreach ($change as $elementID) {
                     if ($flag) {
@@ -196,7 +196,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
                     }
                     $element = get_record_by_id('Element', $elementID);
                     if (empty($element)) {
-                        $rv .= 'Unrecognized element #' . $elementID;
+                        $rv .= __('Unrecognized element #%d', $elementID);
                     }
                     else {
                         $rv .= $element->name;
@@ -207,7 +207,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
             case 'exported':
                 return empty($change)
                     ? ''
-                    : 'Exported to: ' . $change;
+                    : __('Exported to: ', $change);
 
             case 'deleted':
                 return '';
@@ -233,18 +233,18 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     public function displayCurrentTitle()
     {
         if (empty($this->item_id)) {
-            throw new Exception('Could not retrieve Item ID');
+            throw new Exception(__('Could not retrieve Item ID'));
         }
 
         $item = get_record_by_id('Item', $this->item_id);
         if (empty($item)) {
-            return 'deleted item';
+            return __('deleted item');
         }
 
         $titles = $item->getElementTexts('Dublin Core', 'Title');
         $title = isset($titles[0])
             ? $titles[0]
-            : 'untitled / title unknown';
+            : __('untitled / title unknown');
 
         return $title;
     }

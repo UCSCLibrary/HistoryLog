@@ -50,7 +50,7 @@ class HistoryLog_Form_Reports extends Omeka_Form
         // Collection.
         $this->addElement('select', 'collection', array(
             'label' => __('Collection'),
-            'description' => __('The collection whose items\' log information will be retrieved (default: all)'),
+            'description' => __("The collection whose items' log information will be retrieved (default: all)"),
             'value' => '0',
             'order' => 1,
             'validators' => array(
@@ -209,22 +209,22 @@ class HistoryLog_Form_Reports extends Omeka_Form
                 throw $e;
             }
 
-            if ($style == 'html') {
-                $logStart = '<table><tr style="font-weight:bold"><td>Item Title</td><td>User</td><td>Action</td><td>Details</td><td>Date</td></tr>';
-                $rowStart = '<tr><td>';
-                $colSep = '</td><td>';
-                $rowEnd = '</td></tr>';
-                $logEnd = '</table>';
-            } else if ($style == 'csv') {
-                $logStart = $_REQUEST['csvheaders'] ? 'Item Title,User,Action,Details,Date' . PHP_EOL : '';
-                $rowStart = '';
-                $colSep = ',';
-                $rowEnd = PHP_EOL;
-                $logEnd = '';
-            }
-
-            $log .= $logStart;
             if (count($logEntries) > 0) {
+                if ($style == 'html') {
+                    $logStart = '<table><tr style="font-weight:bold"><td>' . __('Item Title') . '</td><td>' . __('User') . '</td><td>' . __('Action') . '</td><td>' . __('Details') . '</td><td>' . __('Date') . '</td></tr>';
+                    $rowStart = '<tr><td>';
+                    $colSep = '</td><td>';
+                    $rowEnd = '</td></tr>';
+                    $logEnd = '</table>';
+                } else if ($style == 'csv') {
+                    $logStart = $_REQUEST['csvheaders'] ? __('Item Title') . ',' . __('User') . ',' . __('Action') . ',' . __('Details') . ',' . __('Date') . PHP_EOL : '';
+                    $rowStart = '';
+                    $colSep = ',';
+                    $rowEnd = PHP_EOL;
+                    $logEnd = '';
+                }
+
+                $log .= $logStart;
                 foreach ($logEntries as $logEntry) {
                     $log .= $rowStart;
                     $log .= str_replace($colSep, '\\' . $colSep, $logEntry->title);
@@ -238,11 +238,12 @@ class HistoryLog_Form_Reports extends Omeka_Form
                     $log .= str_replace($colSep, '\\' . $colSep, $logEntry->displayAdded());
                     $log .= $rowEnd;
                 }
+                $log .= $logEnd;
             } else {
-                $log .= $rowStart . 'No matching logs found' . $colSep . $colSep . $colSep . $colSep . $rowEnd;
+                $log .= __('No matching logs found.');
             }
-            $log .= $logEnd;
         }
+
         return $log;
     }
 
@@ -258,7 +259,7 @@ class HistoryLog_Form_Reports extends Omeka_Form
         unset($collections['']);
 
         $options = array(
-            '0' => 'All Collections',
+            '0' => __('All Collections'),
         );
         $options += $collections;
         return $options;
@@ -273,7 +274,7 @@ class HistoryLog_Form_Reports extends Omeka_Form
     private function _getUserOptions()
     {
         $options = array(
-            '0' => 'All Users'
+            '0' => __('All Users'),
         );
 
         try {
@@ -303,12 +304,12 @@ class HistoryLog_Form_Reports extends Omeka_Form
     private function _getActionOptions()
     {
         return array(
-            '0' => 'All Actions',
-            'created' => 'Item Created',
-            'imported' => 'Item Imported',
-            'updated' => 'Item Modified',
-            'exported' => 'Item Exported',
-            'deleted' => 'Item Deleted'
+            '0' => __('All Actions'),
+            'created' => __('Item Created'),
+            'imported' => __('Item Imported'),
+            'updated' => __('Item Modified'),
+            'exported' => __('Item Exported'),
+            'deleted' => __('Item Deleted'),
         );
     }
 }

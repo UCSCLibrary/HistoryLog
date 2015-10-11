@@ -27,7 +27,7 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
         try {
             $form = new HistoryLog_Form_Reports();
         } catch (Exception $e) {
-            $flashMessenger->addMessage('Error rendering log report form.', 'error');
+            $flashMessenger->addMessage(__('Error rendering log report form.'), 'error');
         }
 
         // If valid form submitted.
@@ -49,7 +49,7 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
                     $this->view->report = HistoryLog_Form_Reports::ProcessPost();
                 }
             } catch (Exception $e) {
-                $flashMessenger->addMessage('Error processing form data. ' . $e->getMessage(), 'error');
+                $flashMessenger->addMessage(__('Error processing form data.') . ' ' . $e->getMessage(), 'error');
             }
         }
 

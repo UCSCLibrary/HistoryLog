@@ -1,6 +1,6 @@
 <?php
 
-echo head(array('title' => 'Item Curation History Log'));
+echo head(array('title' => __('Item Curation History Log')));
 
 echo flash();
 
