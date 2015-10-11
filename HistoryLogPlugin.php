@@ -25,6 +25,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         'install',
         'upgrade',
         'uninstall',
+        'uninstall_message',
         'define_acl',
         'define_routes',
         'before_save_record',
@@ -180,6 +181,14 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         } catch(Exception $e) {
             throw $e;
         }
+    }
+
+    /**
+     * Add a message to the confirm form for uninstallation of the plugin.
+     */
+    public function hookUninstallMessage()
+    {
+        echo __('Warning: All the history log entries will be deleted.');
     }
 
     /**
@@ -468,10 +477,9 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 
         $logEntry = new HistoryLogEntry();
         try {
-            // This is a required field.
             $logEntry->setRecord($record);
-            $logEntry->user_id = $currentUser->id;
-            $logEntry->operation = $operation;
+            $logEntry->setUserId($currentUser->id);
+            $logEntry->setOperation($operation);
             $logEntry->setChange($change);
             $logEntry->save();
         } catch(Exception $e) {

@@ -41,16 +41,34 @@ echo head(array(
                 <tr class="history-log-entry <?php if (++$key%2 == 1) echo 'odd'; else echo 'even'; ?>">
                     <td><?php echo $logEntry->added; ?></td>
                     <td><?php echo $logEntry->record_type; ?></td>
-                    <td><?php echo $logEntry->record_id; ?></td>
+                    <td><?php
+                        if ($record = $logEntry->getRecord()) {
+                            echo link_to($record, 'show', $logEntry->record_id);
+                        } else {
+                            echo $logEntry->record_id;
+                        }
+                    ?></td>
                     <td><?php echo $logEntry->title; ?></td>
                     <td><?php
                     if (!empty($logEntry->part_of)) {
                         switch ($logEntry->record_type) {
                             case 'Item':
-                                echo __('Collection %d', $logEntry->part_of);
+                                $part = get_record_by_id('Collection', $logEntry->part_of);
+                                $text = __('Collection %d', $logEntry->part_of);
+                                if ($part) {
+                                    echo link_to($part, 'show', $text);
+                                } else {
+                                    echo $text;
+                                }
                                 break;
                             case 'File':
-                                echo __('Item %d', $logEntry->part_of);
+                                $part = get_record_by_id('Item', $logEntry->part_of);
+                                $text = __('Item %d', $logEntry->part_of);
+                                if ($part) {
+                                    echo link_to($part, 'show', $text);
+                                } else {
+                                    echo $text;
+                                }
                                 break;
                         }
                     }

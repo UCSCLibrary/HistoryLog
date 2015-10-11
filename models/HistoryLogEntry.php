@@ -70,6 +70,11 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
      */
     private $_change;
 
+    protected function _initializeMixins()
+    {
+        $this->_mixins[] = new Mixin_Timestamp($this, 'added', null);
+    }
+
     /**
      * Set record and associated values (collection and title).
      */
@@ -95,13 +100,48 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     }
 
     /**
-     * Executes before the record is saved.
+     * Sets the user id of the owner of the imported items.
+     *
+     * @param int $id The user id of the owner of the imported items
+     */
+    public function setUserId($id)
+    {
+        $this->user_id = (integer) $id;
+    }
+
+    /**
+     * Set the operation.
+     *
+     * @param string $operation
+     */
+    public function setOperation($operation)
+    {
+        if (in_array($operation, array('created', 'imported', 'updated', 'exported', 'deleted'))) {
+            $this->operation = $operation;
+        }
+    }
+
+    /**
+     * Set the change.
      *
      * @param string|array $change
      */
     public function setChange($change)
     {
         $this->_change = $change;
+    }
+
+    /**
+     * Get the record object.
+     *
+     * @return Record
+     */
+    public function getRecord()
+    {
+        // Manage the case where record type has been removed.
+        if (class_exists($this->record_type)) {
+            return $this->getTable($this->record_type)->find($this->record_id);
+        }
     }
 
     /**
@@ -155,7 +195,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     {
         $user = get_record_by_id('User', $this->user_id);
         if (empty($user)) {
-            return __('No user / deleted user');
+            return __('No user / deleted user [%d]', $this->user_id);
         }
         return $user->name . ' (' . $user->username . ')';
     }
@@ -278,5 +318,36 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
             : __('untitled / title unknown');
 
         return $title;
+    }
+
+    /**
+     * Simple validation.
+     */
+    protected function _validate()
+    {
+        if (empty($this->record_type) || empty($this->record_id)) {
+            $this->addError('record_id', __('Record cannot be empty.'));
+        }
+        if (!in_array($this->record_type, array('Item', 'Collection', 'File'))) {
+            $this->addError('record_type', __('Record type "%s" is not correct.', $this->record_type));
+        }
+        if (!in_array($this->operation, array('created', 'imported', 'updated', 'exported', 'deleted'))) {
+            $this->addError('operation', __('Operation "%s" is not correct.', $this->operation));
+        }
+    }
+
+    public function getProperty($property)
+    {
+        switch($property) {
+            case 'record':
+                return $this->getRecord();
+            default:
+                return parent::getProperty($property);
+        }
+    }
+
+    public function getResourceId()
+    {
+        return 'HistoryLogEntry';
     }
 }

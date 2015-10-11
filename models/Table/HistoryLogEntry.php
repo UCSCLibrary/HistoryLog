@@ -8,7 +8,7 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
      * that get returned from the database.
      * @param integer $limit Number of objects to return per "page".
      * @param integer $page Page to retrieve.
-     * @return array|null The set of objects that is returned
+     * @return array|null The set of objects that is returned.
      */
     public function getEntries($params, $start = null, $end = null, $limit = null, $page = null)
     {
