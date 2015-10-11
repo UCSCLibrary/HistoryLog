@@ -238,7 +238,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     public function hookAdminHead()
     {
-        queue_js_file('HistoryLog');
+        queue_js_file('history-log');
     }
 
     /**
