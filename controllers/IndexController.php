@@ -22,8 +22,7 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
     }
 
     /**
-     * The browse collections action.
-     *
+     * The browse action.
      */
     public function browseAction()
     {
@@ -32,59 +31,51 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
             $this->_setParam('sort_dir', 'd');
         }
 
+        // Request for downloading.
+        $isCsv = $this->_getParam('csvdownload');
+        if ($isCsv) {
+            // TODO Add pagination for csv.
+            // Return all results without pagination ("00" removes it).
+            $this->setParam('per_page', '00');
+        }
+
         parent::browseAction();
+
+        // Request for downloading.
+        if ($isCsv) {
+            // Prepare the download.
+            $response = $this->getResponse();
+            $response
+                ->setHeader('Content-Disposition',
+                    'attachment; filename=Omeka_History_Log_' . date('Ymd-His') . '.csv')
+                ->setHeader('Content-type', 'text/csv');
+
+            // The response is rendered via the "browse-csv" script.
+            $this->render('browse-csv');
+        }
     }
 
     /**
-     * Display the main log report form, process it, and initiate downloads if
-     * necessary.
+     * This shows the search form for records by going to the correct URI.
      *
      * @return void
      */
-    public function reportsAction()
+    public function searchAction()
     {
-        $flashMessenger = $this->_helper->FlashMessenger;
+        include_once dirname(dirname(__FILE__))
+            . DIRECTORY_SEPARATOR . 'forms'
+            . DIRECTORY_SEPARATOR . 'Search.php';
+        $form = new HistoryLog_Form_Search();
 
-        include_once(dirname(dirname(__FILE__)) . '/forms/CreateReport.php');
-        try {
-            $form = new HistoryLog_Form_Reports();
-        } catch (Exception $e) {
-            $flashMessenger->addMessage(__('Error rendering log report form.'), 'error');
-        }
-
-        // If valid form submitted.
-        if ($this->getRequest()->isPost() && $form->isValid($this->getRequest()->getPost())) {
-            try {
-                // If we're downloading.
-                if ($this->_isDownload()) {
-                    $this->getResponse()
-                        ->setHeader('Content-Disposition',
-                            'attachment; filename=OmekaLog' . date('Y-m-d') . '.csv')
-                        ->setHeader('Content-type', 'application/x-pdf');
-                    $this->view->download = true;
-                    $this->view->report = HistoryLog_Form_Reports::ProcessPost('csv');
-
-                }
-                // If we're displaying.
-                else {
-                    $this->view->download = false;
-                    $this->view->report = HistoryLog_Form_Reports::ProcessPost();
-                }
-            } catch (Exception $e) {
-                $flashMessenger->addMessage(__('Error processing form data.') . ' ' . $e->getMessage(), 'error');
-            }
-        }
+        // Prepare the form to return result in the browse view with pagination.
+        $form->setAction(url(array(
+            'module' => 'history-log',
+            'controller' => 'index',
+            'action' =>'browse',
+        )));
+        // The browse method requires "get" to process the query.
+        $form->setMethod('get');
 
         $this->view->form = $form;
-    }
-
-    /**
-     * Checks whether user requested a downloaded log file.
-     *
-     * @return bool Automatic download if true, html display if false.
-     */
-    private function _isDownload()
-    {
-        return isset($_REQUEST['csvdownload']) && $_REQUEST['csvdownload'];
     }
 }

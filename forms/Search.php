@@ -1,17 +1,17 @@
 <?php
 /**
- * History log report generation form
+ * History log search and report generation form.
  *
  * @copyright Copyright 2014 UCSC Library Digital Initiatives
  * @license http://www.gnu.org/licenses/gpl-3.0.txt GNU GPLv3
  */
 
 /**
- * History log report generation form class
+ * History log search and report generation form class.
  *
  * @package HistoryLog
  */
-class HistoryLog_Form_Reports extends Omeka_Form
+class HistoryLog_Form_Search extends Omeka_Form
 {
     /**
      * Construct the report generation form.
@@ -51,7 +51,7 @@ class HistoryLog_Form_Reports extends Omeka_Form
         // Record type.
         $this->addElement('select', 'record_type', array(
             'label' => __('Record Type'),
-            'description' => __("The type of record whose log information will be retrieved (default: all)"),
+            'description' => __("The type of record whose log information will be retrieved."),
             'value' => '0',
             'order' => 1,
             'validators' => array(
@@ -64,7 +64,7 @@ class HistoryLog_Form_Reports extends Omeka_Form
         // Collection.
         $this->addElement('select', 'collection', array(
             'label' => __('Collection'),
-            'description' => __("If record type is Item, the collection whose items' log information will be retrieved (default: all)"),
+            'description' => __("If record type is %sItem%s, the collection whose items' log information will be retrieved.", '<strong>', '</strong>'),
             'value' => '0',
             'order' => 2,
             'validators' => array(
@@ -77,7 +77,7 @@ class HistoryLog_Form_Reports extends Omeka_Form
         // Item.
         $this->addElement('text', 'item', array(
             'label' => __('Item'),
-            'description' => __("If record type is File, the item whose files' log information will be retrieved (default: all)"),
+            'description' => __("If record type is %sFile%s, the item or range of items whose files' log information will be retrieved.", '<strong>', '</strong>'),
             'value' => '',
             'order' => 3,
             'validators' => array(
@@ -89,7 +89,7 @@ class HistoryLog_Form_Reports extends Omeka_Form
         // User(s).
         $this->addElement('select', 'user', array(
             'label' => __('User(s)'),
-            'description' => __('All administrator users whose edits will be retrieved (default: all)'),
+            'description' => __('All administrator users whose edits will be retrieved.'),
             'value' => '0',
             'order' => 4,
             'validators' => array(
@@ -102,7 +102,7 @@ class HistoryLog_Form_Reports extends Omeka_Form
         // Operations.
         $this->addElement('select', 'operation', array(
             'label' => __('Operation'),
-            'description' => __('Logged curatorial operations to retrieve in this report (default: all)'),
+            'description' => __('Logged curatorial operations to retrieve in this report.'),
             'value' => '0',
             'order' => 5,
             'validators' => array(
@@ -113,9 +113,9 @@ class HistoryLog_Form_Reports extends Omeka_Form
         ));
 
         // Dates.
-        $this->addElement('text', 'date-start', array(
-            'label' => __('Start Date:'),
-            'description' => __('The earliest date from which to retrieve logs'),
+        $this->addElement('text', 'since', array(
+            'label' => __('Start Date'),
+            'description' => __('The earliest date from which to retrieve logs.'),
             'value' => 'YYYY-MM-DD',
             'order' => 6,
             'style' => 'max-width: 120px;',
@@ -131,9 +131,9 @@ class HistoryLog_Form_Reports extends Omeka_Form
             )
         ));
 
-        $this->addElement('text', 'date-end', array(
-            'label' => __('End Date:'),
-            'description' => __('The latest date from which to retrieve logs'),
+        $this->addElement('text', 'until', array(
+            'label' => __('End Date'),
+            'description' => __('The latest date, not included, from which to retrieve logs.'),
             'value' => 'yyyy-mm-dd',
             'order' => 7,
             'style' => 'max-width: 120px;',
@@ -150,7 +150,8 @@ class HistoryLog_Form_Reports extends Omeka_Form
         ));
 
         $this->addElement('checkbox', 'csv-download', array(
-            'label' => __('Download log as CSV file'),
+            'label' => __('Download full log as CSV file'),
+            'description' => __('The values will be separated by a tabulation.'),
             'order' => 8,
             'style' => 'max-width: 120px;',
             'required' => false,
@@ -164,9 +165,10 @@ class HistoryLog_Form_Reports extends Omeka_Form
         ));
 
         // Submit.
-        $this->addElement('submit', 'submit-view', array(
-            'label' => __('Generate Log'),
+        $this->addElement('submit', 'submit-search', array(
+            'label' => __('Search / Report'),
         ));
+        // TODO Add decorator as in "items/search-form.php" for scroll.
 
         /*
         $this->addElement('submit', 'submit-download', array(
@@ -181,110 +183,17 @@ class HistoryLog_Form_Reports extends Omeka_Form
             'item',
             'user',
             'operation',
-            'date-start',
-            'date-end',
+            'since',
+            'until',
             'csv-download',
             'csv-headers'
         ), 'fields');
 
         $this->addDisplayGroup(array(
-                'submit-view'
+                'submit-search'
             ),
-            'submit_buttons',
-            array(
-                'style' => 'clear:left;'
-        ));
-    }
-
-    /**
-     * Process the data from the form and retrieve the requested log data.
-     *
-     * @param string $style The style in which to return the data.
-     * Accepted values: "html"(default), "JSON"
-     * @return string $log Html to display requested log information
-     */
-    public static function ProcessPost($style = 'html')
-    {
-        $log = '';
-
-        if (isset($_REQUEST['operation'])) {
-            $params = array();
-            if (!empty($_REQUEST['record_type'])) {
-                $params['record_type'] = $_REQUEST['record_type'];
-            }
-            // TODO Add record id range like in advanced search.
-            // if (!empty($_REQUEST['record_id'])) {
-            //     $params['record_id'] = $_REQUEST['record_id'];
-            // }
-            if (!empty($_REQUEST['collection']) && $_REQUEST['record_type'] == 'Item') {
-                $params['part_of'] = $_REQUEST['collection'];
-            }
-            if (!empty($_REQUEST['item']) && $_REQUEST['record_type'] == 'File') {
-                $params['part_of'] = $_REQUEST['item'];
-            }
-            if (!empty($_REQUEST['user'])) {
-                $params['user_id'] = $_REQUEST['user'];
-            }
-            if (!empty($_REQUEST['operation'])) {
-                $params['operation'] = $_REQUEST['operation'];
-            }
-
-            $timeStart = null;
-            if (!empty($_REQUEST['datestart']) && $_REQUEST['datestart'] != 'yyyy-mm-dd') {
-                $timeStart = $_REQUEST['datestart'];
-            }
-            $timeEnd = null;
-            if (!empty($_REQUEST['dateend']) && $_REQUEST['dateend'] != 'yyyy-mm-dd') {
-                $timeEnd = $_REQUEST['dateend'];
-            }
-
-            $logTable = get_db()->getTable('HistoryLogEntry');
-
-            try {
-                $logEntries = $logTable->getEntries($params, $timeStart, $timeEnd);
-            }
-            catch (Exception $e) {
-                throw $e;
-            }
-
-            if (count($logEntries) > 0) {
-                if ($style == 'html') {
-                    $logStart = '<table><tr style="font-weight:bold"><td>' . __('Type') . '</td><td>' . __('Record Title') . '</td><td>' . __('User') . '</td><td>' . __('Action') . '</td><td>' . __('Details') . '</td><td>' . __('Date') . '</td></tr>';
-                    $rowStart = '<tr><td>';
-                    $colSep = '</td><td>';
-                    $rowEnd = '</td></tr>';
-                    $logEnd = '</table>';
-                } else if ($style == 'csv') {
-                    $logStart = $_REQUEST['csvheaders'] ? __('Type') . ',' . __('Record Title') . ',' . __('User') . ',' . __('Action') . ',' . __('Details') . ',' . __('Date') . PHP_EOL : '';
-                    $rowStart = '';
-                    $colSep = ',';
-                    $rowEnd = PHP_EOL;
-                    $logEnd = '';
-                }
-
-                $log .= $logStart;
-                foreach ($logEntries as $logEntry) {
-                    $log .= $rowStart;
-                    $log .= str_replace($colSep, '\\' . $colSep, $logEntry->record_type);
-                    $log .= $colSep;
-                    $log .= str_replace($colSep, '\\' . $colSep, $logEntry->title);
-                    $log .= $colSep;
-                    $log .= str_replace($colSep, '\\' . $colSep, $logEntry->displayUser());
-                    $log .= $colSep;
-                    $log .= str_replace($colSep, '\\' . $colSep, $logEntry->displayOperation());
-                    $log .= $colSep;
-                    $log .= str_replace($colSep, '\\' . $colSep, $logEntry->displayChange());
-                    $log .= $colSep;
-                    $log .= str_replace($colSep, '\\' . $colSep, $logEntry->displayAdded());
-                    $log .= $rowEnd;
-                }
-                $log .= $logEnd;
-            } else {
-                $log .= '<strong>' . __('No matching logs found.') . '</strong>';
-            }
-        }
-
-        return $log;
+            'submit_buttons'
+        );
     }
 
     /**
@@ -296,7 +205,7 @@ class HistoryLog_Form_Reports extends Omeka_Form
     private function _getRecordTypeOptions()
     {
         return array(
-            '0' => __('All types of record'),
+            '' => __('All types of record'),
             'Item' => __('Items'),
             'Collection' => __('Collections'),
             'File' => __('Files'),
@@ -311,14 +220,7 @@ class HistoryLog_Form_Reports extends Omeka_Form
      */
     private function _getCollectionOptions()
     {
-        $collections = get_table_options('Collection');
-        unset($collections['']);
-
-        $options = array(
-            '0' => __('All Collections'),
-        );
-        $options += $collections;
-        return $options;
+        return get_table_options('Collection', __('All Collections'));
     }
 
     /**
@@ -330,7 +232,7 @@ class HistoryLog_Form_Reports extends Omeka_Form
     private function _getUserOptions()
     {
         $options = array(
-            '0' => __('All Users'),
+            '' => __('All Users'),
         );
 
         try {
@@ -360,7 +262,7 @@ class HistoryLog_Form_Reports extends Omeka_Form
     private function _getOperationOptions()
     {
         return array(
-            '0' => __('All Actions'),
+            '' => __('All Actions'),
             'created' => __('Record Created'),
             'imported' => __('Record Imported'),
             'updated' => __('Record Updated'),

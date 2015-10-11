@@ -7,9 +7,15 @@ echo head(array(
 ?>
 <div id="primary">
     <?php echo flash(); ?>
-    <h2><?php echo __('Curation History Log'); ?></h2>
-<?php if (iterator_count(loop('HistoryLogEntry'))): ?>
+    <div>
+<?php if (total_records('HistoryLogEntry') == 0): ?>
+        <p><?php echo __('No entry have been logged.'); ?></p>
+<?php else: ?>
+        <div class="table-actions">
+            <a href="<?php echo html_escape(url('history-log/index/search')); ?>" class="add button small green"><?php echo __('Advanced Reports'); ?></a>
+        </div>
         <?php echo common('quick-filters'); ?>
+        <?php if (iterator_count(loop('HistoryLogEntry'))): ?>
         <div class="pagination"><?php echo $paginationLinks = pagination_links(); ?></div>
         <table id="history-log-entries" cellspacing="0" cellpadding="0">
             <thead>
@@ -57,14 +63,14 @@ echo head(array(
             </tbody>
         </table>
         <div class="pagination"><?php echo $paginationLinks; ?></div>
-    </form>
-<?php else: ?>
-    <?php if (total_records('HistoryLogEntry') == 0): ?>
-        <p><?php echo __('No entry have been logged.'); ?></p>
-    <?php else: ?>
-        <p><?php echo __('The query searched %s records and returned no results.', total_records('HistoryLogEntry')); ?></p>
-        <p><a href="<?php echo url('history-log'); ?>"><?php echo __('See all history log entries.'); ?></a></p>
-    <?php endif; ?>
+        <?php else: ?>
+        <br class="clear" />
+        <div>
+            <p><?php echo __('The query searched %s records and returned no results.', total_records('HistoryLogEntry')); ?></p>
+            <p><?php echo __('Display all %shistory log entries%s.', '<a href="' . url('history-log') . '">', "</a>"); ?></p>
+        </div>
+        <?php endif; ?>
+    </div>
 <?php endif; ?>
 </div>
 <?php

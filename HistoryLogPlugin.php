@@ -432,7 +432,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     {
         $nav[] = array(
             'label' => __('History Logs'),
-            'uri' => url('history-log/index/reports'),
+            'uri' => url('history-log'),
             'resource' => 'HistoryLog_Index',
             'privilege' => 'index',
         );

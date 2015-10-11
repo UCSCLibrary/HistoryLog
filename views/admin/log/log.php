@@ -1,6 +1,9 @@
 <?php
 
-echo head(array('title' => __('Curation History Log')));
+echo head(array(
+    'title' => __('Curation History Log'),
+    'bodyclass' => 'history-log entries',
+));
 
 echo flash();
 
