@@ -22,6 +22,27 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
     }
 
     /**
+     * Return last entry for a record.
+     *
+     * @param Object|array $record
+     * @param Object|integer $element
+     * @return HistoryLogEntry|null The last entry if any.
+     */
+    public function getLastEntryForElement($record, $element)
+    {
+        $params = array(
+            'record' => $record,
+            'element' => $element,
+            'sort_field' => 'added',
+            'sort_dir' => 'd',
+        );
+        $entries = $this->findBy($params, 1);
+        if ($entries) {
+            return reset($entries);
+        }
+    }
+
+    /**
      * @param Omeka_Db_Select
      * @param array
      * @return void
@@ -61,6 +82,9 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
                     if (strtolower($value) != 'yyyy-mm-dd') {
                         $this->filterByUntil($select, $value, 'added');
                     }
+                    break;
+                case 'element':
+                    $this->filterByChangedElement($select, $value);
                     break;
                 default:
                     $genericParams[$key] = $value;
@@ -205,5 +229,25 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
         // Select all dates that are lower than the passed date.
         $alias = $this->getTableAlias();
         $select->where("`$alias`.`$dateField` < ?", $date);
+    }
+
+    /**
+     * Apply a element filter to the select object.
+     *
+     * @see self::applySearchFilters()
+     * @param Omeka_Db_Select $select
+     */
+    public function filterByChangedElement(Omeka_Db_Select $select, $element)
+    {
+        if (empty($element)) {
+            return;
+        }
+
+        $elementId = is_object($element)
+            ? $element->id
+            : (integer) $element;
+
+        $alias = $this->getTableAlias();
+        $select->where("`$alias`.`change` LIKE ?", '% ' . $elementId . ' %');
     }
 }
