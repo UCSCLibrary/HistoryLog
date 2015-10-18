@@ -30,7 +30,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         'define_routes',
         'before_save_record',
         'after_save_record',
-        'before_delete_record',
+        'after_delete_record',
         'export',
         'admin_items_show',
         'admin_collections_show',
@@ -45,6 +45,14 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     protected $_filters = array(
         'admin_navigation_main',
     );
+
+    /**
+     * @var array
+     *
+     * Array of new log entries with old element texts, that are used to update.
+     * These events are saved only if the process succeeds ("after save").
+     */
+    private $_logEntries = array();
 
     /**
      * When the plugin installs, create the database tables to store the logs.
@@ -175,7 +183,14 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 
         // If it's not a new record, check for changes.
         if (empty($args['insert'])) {
-            $this->_logEvent($record, HistoryLogEntry::OPERATION_UPDATE);
+            // In Omeka, an update is different when manual or automatic: the
+            // mixin for element texts uses only post data (manual insert).
+            // So, to simplify the logging, the update is cached here for any
+            // type of update. This alllows to log the changes only when are
+            // really saved.
+            $logEntry = new HistoryLogEntry();
+            $result = $logEntry->prepareEvent($record);
+            $this->_logEntries[get_class($record)][$record->id] = $logEntry;
         }
     }
 
@@ -193,8 +208,15 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
             return;
         }
 
+        // It's an update of a record.
+        if (empty($args['insert'])) {
+            $this->_logEvent($record, HistoryLogEntry::OPERATION_UPDATE);
+            // Normally useless but may avoid a double update and reduce memory.
+            unset($this->_logEntries[get_class($record)][$record->id]);
+        }
+
         // If it's a new record, imported or manually created.
-        if (!empty($args['insert'])) {
+        else {
             $imported = $this->_isImported();
             if ($imported) {
                 $this->_logEvent($record, HistoryLogEntry::OPERATION_IMPORT, $imported);
@@ -209,7 +231,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      * @param array $args An array of parameters passed by the hook.
      * @return void
      */
-    public function hookBeforeDeleteRecord($args)
+    public function hookAfterDeleteRecord($args)
     {
         $record = $args['record'];
         if (!$this->_isLoggable($record)) {
@@ -383,14 +405,16 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         $request = Zend_Controller_Front::getInstance()->getRequest();
         if ($request) {
             $url = current_url();
-            if (strpos('nuxeo-link', $url)) {
-                $imported = 'Nuxeo';
-            }
-            elseif (strpos('youtube', $url)) {
-                $imported = 'YouTube';
-            }
-            elseif (strpos('flickr', $url)) {
-                $imported = 'Flickr';
+            if ($url) {
+                if (strpos('nuxeo-link', $url)) {
+                    $imported = 'Nuxeo';
+                }
+                elseif (strpos('youtube', $url)) {
+                    $imported = 'YouTube';
+                }
+                elseif (strpos('flickr', $url)) {
+                    $imported = 'Flickr';
+                }
             }
             // Else manually created.
         }
@@ -406,7 +430,8 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      *
      * @uses HistoryLogEntry::logEvent()
      *
-     * @param Object|array $record The Omeka record to log.
+     * @param Object|array $record The Omeka record to log. It should be an
+     * object for a "create" or an "update".
      * @param string $operation The type of event to log (e.g. "create"...).
      * @param string|array $change An extra piece of type specific data for the
      * log.
@@ -419,7 +444,17 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
             throw new Exception(__('Could not retrieve user info.'));
         }
 
-        $logEntry = new HistoryLogEntry();
+        if ($operation == HistoryLogEntry::OPERATION_UPDATE) {
+            if (!isset($this->_logEntries[get_class($record)][$record->id])) {
+                throw new Exception(__('Could not log this update.'));
+            }
+            $logEntry = $this->_logEntries[get_class($record)][$record->id];
+        }
+        // Simple event.
+        else {
+            $logEntry = new HistoryLogEntry();
+        }
+
         try {
             // Prepare the log entry.
             $result = $logEntry->logEvent($record, $user, $operation, $change);
@@ -428,7 +463,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
                 throw new Exception(__('This event is not loggable.'));
             }
 
-            // Only save if this is a useful.
+            // Only save if this is useful.
             $result = $logEntry->saveIfChanged();
             if ($result === false) {
                 throw new Exception(__('Could not log info.'));

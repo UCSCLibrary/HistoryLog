@@ -83,6 +83,12 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     private $_changesToLog;
 
     /**
+     * @var array List of old texts used to get changes for an update.
+     * If null during an update, all element texts will be saved.
+     */
+    private $_oldElements;
+
+    /**
      * Initialize the mixins for a record.
      */
     protected function _initializeMixins()
@@ -90,6 +96,31 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
         // TODO The acl resource interface is useless?
         $this->_mixins[] = new Mixin_Owner($this, 'user_id');
         $this->_mixins[] = new Mixin_Timestamp($this, 'added', null);
+    }
+
+    /**
+     * Prepare the log of update on a record: store old metadata.
+     *
+     * This is the recommended method to log an update.
+     *
+     * @param Object $record
+     * @return boolean False if an error occur, else true.
+      */
+    public function prepareEvent($record)
+    {
+        // getAllElementTextsByElement() is available only in Omeka 2.3.
+        $elementTexts = $record->getAllElementTexts();
+        if (is_null($elementTexts)) {
+            return false;
+        }
+
+        $oldElements = array();
+        foreach ($elementTexts as $elementText) {
+            $oldElements[$elementText->element_id][] = $elementText->text;
+        }
+        $this->_oldElements = $oldElements;
+
+        return true;
     }
 
     /**
@@ -104,10 +135,12 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
      * @param User|integer $user
      * @param string $operation The type of event to log (e.g. "create"...).
      * @param string|array $change An extra piece of type specific data for the
-     * log. When the operation is "create" or "update", the change of elements
-     * is automatically set. For "delete", there is no change. For "import" and
-     * "export", it'is an external content that can't be determined inside the
-     * history log entry.
+     * log. When the operation is "create", the change of elements is
+     * automatically set. For "update", the change may be automatically set if
+     * the method prepareEvent() has been called before. Else, this param should
+     * be filled with the array of old texts, ordered by element id. For
+     * "delete", there is no change. For "import" and "export", this is an
+     * external content that can't be determined inside the history log entry.
      * @return boolean False if an error occur, else true.
       */
     public function logEvent($record, $user, $operation, $change = null)
@@ -118,11 +151,14 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
             // throw __('Operation "%s" is not allowed.', $operation);
         }
 
-        // Special check for 'update": an object is required to find old
-        // elements.
-        if ($this->operation == HistoryLogEntry::OPERATION_UPDATE && !is_object($record)) {
+        // Special check for "create' and "'update": an object is required to
+        // find elements (in fact, for "create", only for a manual insert).
+        if (!is_object($record) && in_array($this->operation, array(
+                HistoryLogEntry::OPERATION_CREATE,
+                HistoryLogEntry::OPERATION_UPDATE,
+            ))) {
             return false;
-            // throw __('Operation "Update" cannot be logged if the record is not an object.');
+            // throw __('Operations "Create" and "Update" cannot be logged if the record is not an object.');
         }
 
         // Get the record object if it is an array.
@@ -159,9 +195,19 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
         // Set change according to the operation.
         switch ($this->operation) {
             case HistoryLogEntry::OPERATION_CREATE:
-            case HistoryLogEntry::OPERATION_UPDATE:
-                $changes = $this->_findAlteredElements($record, $this->operation);
+                $changes = $this->_findAlteredElementsForCreatedRecord($record);
                 $this->_setChangesToLog($changes);
+                break;
+            case HistoryLogEntry::OPERATION_UPDATE:
+                // This allows to save change without preparation.
+                if (is_null($change)) {
+                    $changes = $this->_findAlteredElementsForUpdatedRecord($record);
+                    $this->_setChangesToLog($changes);
+                }
+                // No preparation and no check.
+                else {
+                    $this->_setChangesToLog($change);
+                }
                 break;
             case HistoryLogEntry::OPERATION_DELETE:
                 // No change.
@@ -407,7 +453,64 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     }
 
     /**
-     * Helper to find out altered elements of a record created or updated.
+     * Helper to find out altered elements of a created record.
+     *
+     * Notes:
+     * - Each text of repetitive field is returned.
+     * - Checks are done according to the natural order.
+     *
+     * @param Record $record Record must be an object.
+     * @return array|null Associative array of element ids and array of texts of
+     * created elements.
+     */
+    protected function _findAlteredElementsForCreatedRecord($record)
+    {
+        // Get the current list of elements.
+        $newElements = array();
+
+        // If there are elements, the record is created via post (manually).
+        $viaPost = isset($record->Elements);
+        // Manual insert.
+        if ($viaPost) {
+            foreach ($record->Elements as $elementId => $elementTexts) {
+                foreach ($elementTexts as $elementText) {
+                    // strlen() is used to allow values like "0".
+                    // But Omeka uses a simple empty() check.
+                    if (strlen($elementText['text']) > 0) {
+                        $newElements[$elementId][] = array(
+                            HistoryLogChange::TYPE_CREATE => $elementText['text'],
+                        );
+                    }
+                }
+            }
+        }
+
+        // Else this is an automatic creation, without post.
+        else {
+            $elementTexts = get_records(
+                'ElementText',
+                array(
+                    'record_type' => get_class($record),
+                    'record_id' => $record->id),
+                0);
+
+            if (is_null($elementTexts)) {
+                // TODO Throw an error? Normally, never here.
+                return;
+            }
+
+            foreach ($elementTexts as $elementText) {
+                $newElements[$elementText->element_id][] = array(
+                    HistoryLogChange::TYPE_CREATE => $elementText['text'],
+                );
+            }
+        }
+
+        return $newElements;
+    }
+
+    /**
+     * Helper to find out altered elements of an updated  record.
      *
      * Notes:
      * - Each text of repetitive field is returned.
@@ -416,68 +519,54 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
      * @param Record $record Record must be an object.
      * @param string $operation Only "create" and "update" have elements.
      * @return array|null Associative array of element ids and array of texts of
-     * created or altered elements.
+     * altered elements.
      */
-    protected function _findAlteredElements($record, $operation)
+    protected function _findAlteredElementsForUpdatedRecord($record)
     {
-        if (!in_array($operation, array(
-                HistoryLogEntry::OPERATION_CREATE,
-                HistoryLogEntry::OPERATION_UPDATE,
-            ))) {
-            return;
-        }
-
-        if (!is_object($record)) {
-            throw __('Record should be an object.');
-        }
-
-         if (!isset($record->Elements)) {
-            return;
-        }
-
-        if ($operation == HistoryLogEntry::OPERATION_CREATE) {
-            // Get the current list of elements.
-            $newElements = array();
-            foreach ($record->Elements as $elementId => $elementTexts) {
-                foreach ($elementTexts as $elementText) {
-                    // strlen() is used to allow values like "0".
-                    if (strlen($elementText['text']) > 0) {
-                        $newElements[$elementId][] = array(
-                            HistoryLogChange::TYPE_CREATE => $elementText['text'],
-                        );
-                    }
-                }
-            }
-            return $newElements;
-        }
-
         // The operation is an update. The old record and the new one are
-        // compared to check if there is altered (added, updated, removed)
-        // elements.
+        // compared to check if there are altered (added, updated, removed)
+        // element texts.
 
-        // Get the old record.
-        try {
-            $oldRecord = get_record_by_id(get_class($record), $record->id);
-        } catch(Exception $e) {
-            throw $e;
+        $oldElements = $this->_oldElements;
+        // Normally, should not be there. So all elements will be created.
+        if (is_null($oldElements)) {
+            return null;
         }
 
         // Get the current list of elements.
         $newElements = array();
-        foreach ($record->Elements as $elementId => $elementTexts) {
-            foreach ($elementTexts as $elementText) {
-                // strlen() is used to allow values like "0".
-                if (strlen($elementText['text']) > 0) {
-                    $newElements[$elementId][] = $elementText['text'];
+
+        // If there are elements, the record is created via post (manually).
+        $viaPost = isset($record->Elements);
+        // Manual update.
+        if ($viaPost) {
+            foreach ($record->Elements as $elementId => $elementTexts) {
+                foreach ($elementTexts as $elementText) {
+                    // strlen() is used to allow values like "0".
+                    if (strlen($elementText['text']) > 0) {
+                        $newElements[$elementId][] = $elementText['text'];
+                    }
                 }
             }
         }
 
-        // Get the old list of elements.
-        $oldElements = array();
-        // getAllElementTextsByElement() is available only in Omeka 2.3.
-        foreach ($oldRecord->getAllElementTexts() as $elementText) {
-            $oldElements[$elementText->element_id][] = $elementText->text;
+        // Automatic update.
+        else {
+            $elementTexts = get_records(
+                'ElementText',
+                array(
+                    'record_type' => get_class($record),
+                    'record_id' => $record->id),
+                0);
+
+            if (is_null($elementTexts)) {
+                // TODO Throw an error? Normally, never here.
+                return;
+            }
+
+            foreach ($elementTexts as $elementText) {
+                $newElements[$elementText->element_id][] = $elementText->text;
+            }
         }
 
         // Updated elements are the ones that have been added, updated or
@@ -513,7 +602,8 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
                     }
                 }
             }
-            // Deleted elements (log it one time only).
+            // Deleted all values (single or multiple) of one field: log it one
+            // time only.
             else {
                 $updatedElements[$elementId][] = array(
                     HistoryLogChange::TYPE_DELETE => '',
