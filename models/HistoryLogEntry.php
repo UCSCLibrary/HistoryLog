@@ -54,39 +54,41 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     public $operation;
 
     /**
-     * @var string More information about the action being performed.
-     * For modifications, this stores the elements modified.
-     * For exports, it stores the export method.
-     * @internal Arrays of element ids are saved as set of values separated with
-     * a space: "[ 50 49 28 ]". Spaces make indexing and search of a particular
-     * id by sql easier: "WHERE change LIKE concat("% ", searched_id, " %")"
-     * returns the good result.
-     * Internally, the value "_change" below is used, and "change" is updated
-     * before save.
-     */
-    public $change;
-
-    /**
      * @var string The UTF formatted date and time when the log took place.
      */
     public $added;
 
     /**
-     * @var string The dublin core title at the time of log entry.
+     * Records related to an Item.
+     *
+     * @var array
      */
-    public $title;
+    protected $_related = array(
+        'Record' => 'getRecord',
+        'Changes' => 'getChanges',
+    );
 
     /**
-     * Cleaned values for "change".
+     * Set of non-persistent Change objects attached to the event.
+     *
+     * @var array
+     * @see HistoryLogEntry::_saveChanges()
+     * @see HistoryLogEntry::_getChanges()
      */
-    private $_change;
+    private $_changes = array();
+
+    /**
+     * @var array The changes related to the event before saving.
+     */
+    private $_changesToLog;
 
     /**
      * Initialize the mixins for a record.
      */
     protected function _initializeMixins()
     {
-        // TODO Add mixin for user.
+        // TODO The acl resource interface is useless?
+        $this->_mixins[] = new Mixin_Owner($this, 'user_id');
         $this->_mixins[] = new Mixin_Timestamp($this, 'added', null);
     }
 
@@ -138,6 +140,9 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
         $this->setRecordType(get_class($record));
         $this->setRecordId($record->id);
 
+        $userId = is_object($user) ? $user->id : $user;
+        $this->setUserId($userId);
+
         // Set the "part_of" if needed.
         switch ($this->record_type) {
             case 'Item':
@@ -151,35 +156,82 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
                 $this->setPartOf(0);
         }
 
-        // Set current title if needed.
-        if (in_array($this->operation, array(
-                HistoryLogEntry::OPERATION_CREATE,
-                HistoryLogEntry::OPERATION_UPDATE,
-            ))) {
-            $titles = $record->getElementTexts('Dublin Core', 'Title');
-            $this->setTitle(isset($titles[0]) ? $titles[0] : '');
-        }
-
-        $userId = is_object($user) ? $user->id : $user;
-        $this->setUserId($userId);
-
         // Set change according to the operation.
         switch ($this->operation) {
             case HistoryLogEntry::OPERATION_CREATE:
             case HistoryLogEntry::OPERATION_UPDATE:
                 $changes = $this->_findAlteredElements($record, $this->operation);
-                $this->setChange($changes);
+                $this->_setChangesToLog($changes);
                 break;
             case HistoryLogEntry::OPERATION_DELETE:
-                $this->setChange('');
+                // No change.
                 break;
             case HistoryLogEntry::OPERATION_IMPORT:
             case HistoryLogEntry::OPERATION_EXPORT:
-                $this->setChange((string) $change);
+                $this->_setChangesToLog((string) $change);
                 break;
         }
 
         return true;
+    }
+
+    /**
+     * Helper to save the entry only if something is changed.
+     *
+     * This function can be used only during  creation.
+     * This is the recommended way to save an event and to avoid empty changes.
+     *
+     * @return boolean|null Return null if the entry is already saved or when
+     * there is no change.
+     */
+    public function saveIfChanged()
+    {
+        if ($this->_isChanged()) {
+            return $this->save();
+        }
+        // Return null if no change.
+    }
+
+    /**
+     * Helper to check if something has changed in the record.
+     *
+     * @return boolean
+     */
+    protected function _isChanged()
+    {
+        // Don't update a log event.
+        if (!empty($this->id)) {
+            return false;
+        }
+        // Update if there is data to log.
+        if (!empty($this->_changesToLog)) {
+            return true;
+        }
+        // There is no data to log. Nevertheless, log the operation, except for
+        // update.
+        if ($this->operation != HistoryLogEntry::OPERATION_UPDATE) {
+            return true;
+        }
+
+        // This is an update without change, so this an internal update. For a
+        // file, it may be new derivatives. For an item, it may be an update of
+        // the status public or featured, a change of collection, files added,
+        // reordered or removed, etc. Currently, only the change of a collection
+        // of an item is logged. Data about files are saved separately.
+
+        // Check if the collection of the item changed.
+        if ($this->record_type == 'Item') {
+            // Get the old record to check it.
+            try {
+                $oldRecord = get_record_by_id('Item', $this->record_id);
+            } catch(Exception $e) {
+                return true;
+            }
+            return $oldRecord->collection_id != $this->part_of;
+        }
+
+        // For all other cases, there is no change.
+        return false;
     }
 
     /**
@@ -237,29 +289,9 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     }
 
     /**
-     * Set the change.
+     * Get the record object. It may be deleted.
      *
-     * @param string|array $change
-     */
-    public function setChange($change)
-    {
-        $this->_change = $change;
-    }
-
-    /**
-     * Set the title.
-     *
-     * @param string $title
-     */
-    public function setTitle($title)
-    {
-        $this->title = (string) $title;
-    }
-
-    /**
-     * Get the record object.
-     *
-     * @return Record
+     * @return Record|null Therecord, else null if deleted.
      */
     public function getRecord()
     {
@@ -270,54 +302,131 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     }
 
     /**
-     * Returns the change or the list of element ids that change.
+     * Returns the list of Change objects related to this entry.
      *
-     * @return string|array The change or the list of element ids that change.
+     * @return HistoryLogChange Array of Change objects related to the entry.
      */
-    public function getChange()
+    public function getChanges()
     {
-        if ($this->_change === null) {
-            $this->_change = $this->change;
-            if (empty($this->change)) {
-                $this->_change = '';
-            }
-            // Check if change is an imploded array.
-            elseif (strpos($this->change, '[ ') === 0
-                    && strrpos($this->change, ' ]') === strlen($this->change) - 2
-                ) {
-                $change = explode(' ', trim($this->change, '[ ]'));
-                $change = array_filter($change);
-                // Check if this is a string or an array of integers.
-                if (count($change) && is_numeric($change[0])) {
-                    $this->_change = $change;
-                }
-            }
+        if (empty($this->_changes)) {
+            $this->_changes =$this->getTable('HistoryLogChange')
+                ->findByEntry($this->id);
         }
-        return $this->_change;
+        return $this->_changes;
     }
 
     /**
-     * Executes before the record is saved.
+     * Returns the list of changed element ids related to this entry.
+     *
+     * @return array List of element ids. 0 is not returned, because it's not an
+     * element id.
+     */
+    public function getElementIds()
+    {
+        return $this->getTable('HistoryLogChange')
+            ->getElementIds($this);
+    }
+
+    /**
+     * Returns the list of changed element ids related to the record.
+     *
+     * @return array List of element ids. 0 is not returned, because it's not an
+     * element id.
+     */
+    public function getElementIdsByRecord()
+    {
+        $record = array(
+            'record_type' => $this->record_type,
+            'record_id' => $this->record_id,
+        );
+        return $this->getTable('HistoryLogEntry')
+            ->getElementIdsForRecord($record);
+    }
+
+    /**
+     * Executes after the record is saved.
+     *
+     * @internal See Mixin_ElementText::beforeSaveElements() for a fully secured
+     * way to save changes. This is useless here, because changes are set here.
      *
      * @param array $args
      */
-    protected function beforeSave($args)
+    protected function afterSave($args)
     {
-        $change = $this->getChange();
-        $this->change = is_array($change) && !empty($change)
-            ? '[ ' . implode(' ', $change) . ' ]'
-            : (string) $change;
+        $this->_saveChanges();
+    }
+
+    /**
+     * Add one or multiple changes.
+     *
+     * @param string|array $changes
+     */
+    protected function _setChangesToLog($changes)
+    {
+        $this->_changesToLog = $changes;
+    }
+
+    /**
+     * Save changes.
+     *
+     * Entries are not designed to be updated, so the current changes are kept
+     * and can't be removed by normal ways.
+     */
+    protected function _saveChanges()
+    {
+        $changes = $this->_changesToLog;
+        if (empty($changes)) {
+            return;
+        }
+
+        // Simplify the process for strings.
+        if (!is_array($changes)) {
+            $changes = array(
+                // This is not an element id, so "0".
+                0 => array(
+                    // There is no process, only a text.
+                    array(HistoryLogChange::TYPE_NONE => (string) $changes),
+            ));
+        }
+
+        foreach ($changes as $elementId => $texts) {
+            foreach ($texts as $process) {
+                $change = new HistoryLogChange();
+                $change->entry_id = $this->id;
+                $change->element_id = $elementId;
+                $change->type = key($process);
+                $change->text = reset($process);
+                $change->save();
+            }
+        }
+
+        // Reset the changes in order to get old and new ones.
+        // Normally, there is no old change.
+        $this->_changes = null;
+        $this->getChanges();
     }
 
     /**
      * Helper to find out altered elements of a record created or updated.
      *
+     * Notes:
+     * - Each text of repetitive field is returned.
+     * - Checks are done according to the natural order.
+     *
      * @param Record $record Record must be an object.
      * @param string $operation Only "create" and "update" have elements.
-     * @return array|null List of element IDs of created or altered elements.
+     * @return array|null Associative array of element ids and array of texts of
+     * created or altered elements.
      */
     protected function _findAlteredElements($record, $operation)
     {
+        if (!in_array($operation, array(
+                HistoryLogEntry::OPERATION_CREATE,
+                HistoryLogEntry::OPERATION_UPDATE,
+            ))) {
+            return;
+        }
+
         if (!is_object($record)) {
             throw __('Record should be an object.');
         }
@@ -325,96 +434,158 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
          if (!isset($record->Elements)) {
             return;
         }
-        $newElements = $record->Elements;
 
-        switch ($operation) {
-            case HistoryLogEntry::OPERATION_CREATE:
-                $listElementIds = array();
-                foreach ($newElements as $elementId => $elementTexts) {
-                    foreach ($elementTexts as $elementText) {
-                        // strlen() is used to allow values like "0".
-                        if (strlen($elementText['text']) > 0) {
-                            $listElementIds[] = $elementId;
-                            break;
-                        }
+        if ($operation == HistoryLogEntry::OPERATION_CREATE) {
+            // Get the current list of elements.
+            $newElements = array();
+            foreach ($record->Elements as $elementId => $elementTexts) {
+                foreach ($elementTexts as $elementText) {
+                    // strlen() is used to allow values like "0".
+                    if (strlen($elementText['text']) > 0) {
+                        $newElements[$elementId][] = array(
+                            HistoryLogChange::TYPE_CREATE => $elementText['text'],
+                        );
                     }
                 }
-                return $listElementIds;
-
-            case HistoryLogEntry::OPERATION_UPDATE:
-                $changedElements = array();
-                try {
-                    $oldRecord = get_record_by_id(get_class($record), $record->id);
-                } catch(Exception $e) {
-                    throw $e;
-                }
-
-                foreach ($newElements as $newElementId => $newElementTexts) {
-                    $flag = false;
-
-                    try {
-                        $element = get_record_by_id('Element', $newElementId);
-                        $oldElementTexts = $oldRecord->getElementTextsByRecord($element);
-                    } catch(Exception $e) {
-                        throw $e;
-                    }
-
-                    $oldETextsArray = array();
-                    foreach ($oldElementTexts as $oldElementText) {
-                        $oldETextsArray[] = $oldElementText['text'];
-                    }
-
-                    $i = 0;
-                    foreach ($newElementTexts as $newElementText) {
-                        if ($newElementText['text'] !== '') {
-                            $i++;
-
-                            if (!in_array($newElementText['text'], $oldETextsArray)) {
-                                $flag = true;
-                            }
-                        }
-                    }
-
-                    if ($i !== count($oldETextsArray)) {
-                        $flag = true;
-                    }
-
-                    if ($flag) {
-                        $changedElements[] = $newElementId;
-                    }
-                }
-
-                return $changedElements;
-
-            default:
-                return;
+            }
+            return $newElements;
         }
+
+        // The operation is an update. The old record and the new one are
+        // compared to check if there is altered (added, updated, removed)
+        // elements.
+
+        // Get the old record.
+        try {
+            $oldRecord = get_record_by_id(get_class($record), $record->id);
+        } catch(Exception $e) {
+            throw $e;
+        }
+
+        // Get the current list of elements.
+        $newElements = array();
+        foreach ($record->Elements as $elementId => $elementTexts) {
+            foreach ($elementTexts as $elementText) {
+                // strlen() is used to allow values like "0".
+                if (strlen($elementText['text']) > 0) {
+                    $newElements[$elementId][] = $elementText['text'];
+                }
+            }
+        }
+
+        // Get the old list of elements.
+        $oldElements = array();
+        // getAllElementTextsByElement() is available only in Omeka 2.3.
+        foreach ($oldRecord->getAllElementTexts() as $elementText) {
+            $oldElements[$elementText->element_id][] = $elementText->text;
+        }
+
+        // Updated elements are the ones that have been added, updated or
+        // deleted.
+        $updatedElements = array();
+        foreach ($oldElements as $elementId => $oldTexts) {
+            // Updated element.
+            if (isset($newElements[$elementId])) {
+                $newTexts = $newElements[$elementId];
+                foreach ($oldTexts as $key => $oldText) {
+                    if (isset($newTexts[$key])) {
+                        if ($newTexts[$key] !== $oldText) {
+                            $updatedElements[$elementId][] = array(
+                                HistoryLogChange::TYPE_UPDATE => $newTexts[$key],
+                            );
+                        }
+                        // Else no change.
+                    }
+                    // The value has been deleted. The text is kept ot distinct
+                    // the full remove of the element.
+                    else {
+                        $updatedElements[$elementId][] = array(
+                            HistoryLogChange::TYPE_DELETE => $oldText,
+                        );
+                    }
+                }
+                // Check if there are more keys in the new texts.
+                if (count($newTexts) > count($oldTexts)) {
+                    for ($i = count($oldTexts); $i < count($newTexts); $i++) {
+                        $updatedElements[$elementId][] = array(
+                            HistoryLogChange::TYPE_CREATE => $newTexts[$i],
+                        );
+                    }
+                }
+            }
+            // Deleted elements (log it one time only).
+            else {
+                $updatedElements[$elementId][] = array(
+                    HistoryLogChange::TYPE_DELETE => '',
+                );
+            }
+        }
+
+        // Check new texts for elements that weren't in the old ones.
+        $newElementsIds = array_diff(array_keys($newElements), array_keys($oldElements));
+        foreach ($newElements as $elementId => $newTexts) {
+            if (in_array($elementId, $newElementsIds)) {
+                foreach ($newTexts as $newText) {
+                    $updatedElements[$elementId][] = array(
+                        HistoryLogChange::TYPE_CREATE => $newText,
+                    );
+                }
+            }
+        }
+
+        return $updatedElements;
     }
 
     /**
-     * Helper to get the list of referenced elements.
+     * Helper to get the list of referenced elements for the entry.
      *
      * @return array|null List of elements by element id. If an element has been
      * removed, its value is null.
      */
     protected function _getReferencedElements()
     {
-        $change = $this->getChange();
-        // Check if this is a list of elements (ids) or a string.
-        if (empty($change) || !is_array($change)) {
+        $elementIds = $this->getElementIds();
+        if (empty($elementIds)) {
             return;
         }
+        return $this->_getElementsFromIds($elementIds);
+    }
 
-        // Else "change" is one or multiple values in a array.
+    /**
+     * Helper to get the list of referenced elements for a record.
+     *
+     * @return array|null List of elements by element id. If an element has been
+     * removed, its value is null.
+     */
+    protected function _getReferencedElementsByRecord()
+    {
+        $elementIds = $this->getElementIdsByRecord();
+        if (empty($elementIds)) {
+            return;
+        }
+        return $this->_getElementsFromIds($elementIds);
+    }
+
+    /**
+     * Helper to get the list of elements from ids, even if removed.
+     *
+     * @param array $elementIds
+     * @return array|null List of elements by element id. If an element has been
+     * removed, its value is null.
+     */
+    protected function _getElementsFromIds($elementIds)
+    {
+        // Initialize the list of all element ids.
+        $referenceds = array_fill_keys($elementIds, null);
+
         // Get the list of elements that still exist.
         $table = $this->_db->getTable('Element');
         $alias = $table->getTableAlias();
-        $result = $table->findBySql($alias . '.id IN (' . implode(',', $change) .')');
-        // Add them in the list of all elements.
-        $referenceds = array_fill_keys($change, null);
+        $result = $table->findBySql($alias . '.id IN (' . implode(',', $elementIds) . ')');
         foreach ($result as $element) {
             $referenceds[$element->id] = $element;
         }
+
         return $referenceds;
     }
 
@@ -427,7 +598,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
      */
     public function displayUser()
     {
-        $user = get_record_by_id('User', $this->user_id);
+        $user = $this->getOwner();
         if (empty($user)) {
             return __('No user / deleted user [%d]', $this->user_id);
         }
@@ -435,9 +606,9 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     }
 
     /**
-     * Retrieve displayable name of an operation by its slug
+     * Retrieve displayable name of an operation.
      *
-     * @return string User displayable operation name
+     * @return string User displayable operation name.
      */
     public function displayOperation()
     {
@@ -463,20 +634,20 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
      *
      * @return string The change in a human readable form.
      */
-    public function displayChange()
+    public function displayChanges()
     {
         // The encoding is different depending on the type of event, so we
         // define different decoding methods for each event type.
-        $change = $this->getChange();
+        $changes = $this->getChanges();
         switch ($this->operation) {
             // Array for created and updated records.
             case HistoryLogEntry::OPERATION_CREATE:
-                return $change
+                return $changes
                     ? $this->_displayElements()
                     : __('Created manually by user');
 
             case HistoryLogEntry::OPERATION_UPDATE:
-                return $change
+                return $changes
                     ? $this->_displayElements()
                     // Internal update: file upload, public/featured...
                     : __('Internal update');
@@ -487,24 +658,77 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
 
             // String for import and export.
             case HistoryLogEntry::OPERATION_IMPORT:
-                return empty($change)
+                $change = reset($changes);
+                return empty($change->text)
                     ? ''
-                    : __('Imported from %s', $change);
+                    : __('Imported from %s', $change->text);
 
             case HistoryLogEntry::OPERATION_EXPORT:
+                $change = reset($changes);
                 return empty($change)
                     ? ''
-                    : __('Exported to: %s', $change);
+                    : __('Exported to: %s', $change->text);
         }
     }
 
     /**
-     * Helper to display the list of elements in change.
+     * Helper to display the list of altered elements.
      *
      * @return string
      */
-     protected function _displayElements()
+    protected function _displayElements()
      {
+         // TODO Only the element name is needed.
+        $elements = $this->_getReferencedElements();
+        if (empty($elements)) {
+            return __('No element.');
+        }
+        $changes = $this->getChanges();
+        $result = array(
+            __('Created') => array(),
+            __('Updated') => array(),
+            __('Deleted') => array(),
+            __('Unchanged') => array(),
+            __('Altered') => array(),
+        );
+        foreach ($changes as $change) {
+            switch ($change->type) {
+                case HistoryLogChange::TYPE_CREATE:
+                    $type = __('Created');
+                    break;
+                case HistoryLogChange::TYPE_UPDATE:
+                    $type = __('Updated');
+                    break;
+                case HistoryLogChange::TYPE_DELETE:
+                    $type = __('Deleted');
+                    break;
+                case HistoryLogChange::TYPE_NONE:
+                    $type = __('Unchanged');
+                    break;
+                default:
+                    $type = __('Altered');
+                    break;
+            }
+            $result[$type][] = empty($elements[$change->element_id])
+                ? __('Unrecognized element #%d', $change->element_id)
+                : $elements[$change->element_id]->name;
+        }
+        $result = array_filter($result);
+        foreach ($result as $type => &$r) {
+            $r = __('%s: %s', $type, implode(', ', array_unique($r)));
+        }
+        $result = implode(";\n", $result);
+        return $result;
+     }
+
+    /**
+     * Helper to display the list of altered elements.
+     *
+     * @return string
+     */
+    protected function _displayAlteredElements()
+     {
+         // TODO Only the element name is needed.
         $elements = $this->_getReferencedElements();
         if (empty($elements)) {
             return __('No element.');
@@ -515,7 +739,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
                 ? $element->name
                 : __('Unrecognized element #%d', $elementId);
         }
-        return __('Metadata altered: %s', implode(', ', $result));
+        return __('Altered: %s', implode(', ', $result));
      }
 
     /**
@@ -527,16 +751,6 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     {
         // TODO Clearly, not yet fully implemented.
         return $this->added;
-    }
-
-    /**
-     * Display the stored title.
-     *
-     * @return string The stored title of the record if any.
-     */
-    public function displayTitle()
-    {
-        return $this->title;
     }
 
     /**
@@ -572,12 +786,6 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
         }
         if (!$this->_isOperationValid()) {
             $this->addError('operation', __('Operation "%s" is not correct.', $this->operation));
-        }
-        if (is_null($this->change)) {
-            $this->change = '';
-        }
-        if (is_null($this->title)) {
-            $this->title = '';
         }
     }
 
@@ -620,6 +828,12 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
         ));
     }
 
+    /**
+     * Get a property or special value of this record.
+     *
+     * @param string $property
+     * @return mixed
+     */
     public function getProperty($property)
     {
         switch($property) {
@@ -630,8 +844,13 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
         }
     }
 
+    /**
+     * Get the ACL resource ID for the record.
+     *
+     * @return string
+     */
     public function getResourceId()
     {
-        return 'HistoryLogEntry';
+        return 'HistoryLogEntries';
     }
 }

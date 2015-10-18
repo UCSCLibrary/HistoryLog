@@ -40,6 +40,7 @@ class HistoryLog_Form_Search extends Omeka_Form
             $collectionOptions = $this->_getCollectionOptions();
             $userOptions = $this->_getUserOptions();
             $operationOptions = $this->_getoperationOptions();
+            $elementOptions = $this->_getElementOptions();
         } catch (Exception $e) {
             throw $e;
         }
@@ -112,12 +113,26 @@ class HistoryLog_Form_Search extends Omeka_Form
             'multiOptions' => $operationOptions,
         ));
 
+        // Operations.
+        $this->addElement('select', 'element', array(
+            'label' => __('Element'),
+            'description' => __('Limit response with the selected element.')
+                . ' ' . __('This field is only available for events %1$sCreate%2$s and %1$sUpdate%2$s.', '<strong>', '</strong>'),
+            'value' => '',
+            'order' => 6,
+            'validators' => array(
+                'digits',
+            ),
+            'required' => false,
+            'multiOptions' => $elementOptions,
+        ));
+
         // Dates.
         $this->addElement('text', 'since', array(
             'label' => __('Start Date'),
             'description' => __('The earliest date from which to retrieve logs.'),
             'value' => 'YYYY-MM-DD',
-            'order' => 6,
+            'order' => 7,
             'style' => 'max-width: 120px;',
             'required' => false,
             'validators' => array(
@@ -135,7 +150,7 @@ class HistoryLog_Form_Search extends Omeka_Form
             'label' => __('End Date'),
             'description' => __('The latest date, not included, from which to retrieve logs.'),
             'value' => 'YYYY-MM-DD',
-            'order' => 7,
+            'order' => 8,
             'style' => 'max-width: 120px;',
             'required' => false,
             'validators' => array(
@@ -152,14 +167,14 @@ class HistoryLog_Form_Search extends Omeka_Form
         $this->addElement('checkbox', 'csv-download', array(
             'label' => __('Download full log as CSV file'),
             'description' => __('The values will be separated by a tabulation.'),
-            'order' => 8,
+            'order' => 9,
             'style' => 'max-width: 120px;',
             'required' => false,
         ));
 
         $this->addElement('checkbox', 'csv-headers', array(
             'label' => __('Include headers in csv files'),
-            'order' => 9,
+            'order' => 10,
             'style' => 'max-width: 120px;',
             'required' => false,
         ));
@@ -183,6 +198,7 @@ class HistoryLog_Form_Search extends Omeka_Form
             'item',
             'user',
             'operation',
+            'element',
             'since',
             'until',
             'csv-download',
@@ -268,6 +284,22 @@ class HistoryLog_Form_Search extends Omeka_Form
             HistoryLogEntry::OPERATION_DELETE => __('Record Deleted'),
             HistoryLogEntry::OPERATION_IMPORT => __('Record Imported'),
             HistoryLogEntry::OPERATION_EXPORT => __('Record Exported'),
+        );
+    }
+
+    /**
+     * Retrieve possible log operations as selectable option list.
+     *
+     * @todo Add deleted elements that are used in old entries.
+     *
+     * @return array $options An associative array of the logged record event
+     * types.
+     */
+    private function _getElementOptions()
+    {
+        return get_table_options('Element', null, array(
+            'record_types' => array('Item', 'All'),
+            'sort' => 'orderBySet')
         );
     }
 }

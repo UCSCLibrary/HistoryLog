@@ -5,6 +5,14 @@ echo head(array(
     'bodyclass' => 'history-log browse',
 ));
 ?>
+<style>
+div.record-title {
+    max-width: 15em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+</style>
 <div id="primary">
     <?php echo flash(); ?>
     <div>
@@ -24,11 +32,10 @@ echo head(array(
                     $browseHeadings[__('Date')] = 'date';
                     $browseHeadings[__('Type')] = 'record_type';
                     $browseHeadings[__('Id')] = 'record_id';
-                    $browseHeadings[__('Title')] = 'title';
                     $browseHeadings[__('Part of ')] = 'part_of';
                     $browseHeadings[__('User')] = 'user_id';
                     $browseHeadings[__('Action')] = 'operation';
-                    $browseHeadings[__('Change')] = null;
+                    $browseHeadings[__('Changes')] = null;
                     echo browse_sort_links($browseHeadings, array('link_tag' => 'th scope="col"', 'list_tag' => ''));
                     ?>
                 </tr>
@@ -40,14 +47,18 @@ echo head(array(
                 ?>
                 <tr class="history-log-entry <?php if (++$key%2 == 1) echo 'odd'; else echo 'even'; ?>">
                     <td><?php echo $logEntry->added; ?></td>
-                    <td><?php echo $logEntry->record_type; ?></td>
-                    <td><a href="<?php
+                    <td colspan="2">
+                        <a href="<?php
                         echo url(array(
                                 'type' => Inflector::tableize($logEntry->record_type),
                                 'id' => $logEntry->record_id,
-                            ), 'history_log_record_log'); ?>"><?php echo $logEntry->record_id;
-                    ?></a></td>
-                    <td><?php echo $logEntry->title; ?></td>
+                            ), 'history_log_record_log'); ?>"><?php
+                            echo $logEntry->record_type;
+                            echo ' ';
+                            echo $logEntry->record_id;
+                        ?></a>
+                        <div class="record-title"><?php echo $logEntry->displayCurrentTitle(); ?></div>
+                    </td>
                     <td><?php
                     if (!empty($logEntry->part_of)) {
                         switch ($logEntry->record_type) {
@@ -76,7 +87,7 @@ echo head(array(
                     ?></td>
                     <td><?php echo $logEntry->displayUser(); ?></td>
                     <td><?php echo $logEntry->displayOperation(); ?></td>
-                    <td><?php echo $logEntry->displayChange(); ?></td>
+                    <td><?php echo nl2br($logEntry->displayChanges(), true); ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>

@@ -53,27 +53,37 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     public function hookInstall()
     {
-        try {
-            $sql = "
-            CREATE TABLE IF NOT EXISTS `{$this->_db->HistoryLogEntry}` (
-                `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-                `record_type` enum('Item', 'Collection', 'File') NOT NULL,
-                `record_id` int(10) NOT NULL,
-                `part_of` int(10) NOT NULL DEFAULT 0,
-                `user_id` int(10) NOT NULL,
-                `operation` enum('create', 'update', 'delete', 'import', 'export') NOT NULL,
-                `change` text collate utf8_unicode_ci NOT NULL,
-                `added` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                `title` mediumtext COLLATE utf8_unicode_ci NOT NULL,
-                PRIMARY KEY (`id`),
-                KEY `record_type_record_id` (`record_type`, `record_id`),
-                KEY (`change` (50)),
-                KEY (`added`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;";
-            $this->_db->query($sql);
-        } catch(Exception $e) {
-            throw $e;
-        }
+        $db = $this->_db;
+
+        // Main table to log event.
+        $sql = "
+        CREATE TABLE IF NOT EXISTS `{$db->HistoryLogEntry}` (
+            `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+            `record_type` enum('Item', 'Collection', 'File') NOT NULL,
+            `record_id` int(10) unsigned NOT NULL,
+            `part_of` int(10) unsigned NOT NULL DEFAULT 0,
+            `user_id` int(10) unsigned NOT NULL,
+            `operation` enum('create', 'update', 'delete', 'import', 'export') NOT NULL,
+            `added` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            INDEX `record_type_record_id` (`record_type`, `record_id`),
+            INDEX (`added`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;";
+        $db->query($sql);
+
+        // Associated table to log changes of each element.
+        $sql = "
+        CREATE TABLE IF NOT EXISTS `{$db->HistoryLogChange}` (
+            `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+            `entry_id` int(10) unsigned NOT NULL,
+            `element_id` int(10) unsigned NOT NULL,
+            `type` enum('none', 'create', 'update', 'delete') NOT NULL,
+            `text` mediumtext COLLATE utf8_unicode_ci NOT NULL,
+            PRIMARY KEY (`id`),
+            INDEX (`entry_id`),
+            INDEX `entry_id_element_id` (`entry_id`, `element_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;";
+        $db->query($sql);
     }
 
     /**
@@ -85,162 +95,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         $newVersion = $args['new_version'];
         $db = $this->_db;
 
-        if (version_compare($oldVersion, '2.4', '<')) {
-            // TODO Check if the structure is already upgraded in case of a bug.
-            // Reorder columns and change name of columns "type" to "action".,
-            // "value" to "change" and "time" to "added".
-            $sql = "
-                ALTER TABLE `{$db->HistoryLogEntry}`
-                CHANGE `itemID` `item_id` int(10) NOT NULL AFTER `id`,
-                CHANGE `collectionID` `collection_id` int(10) NOT NULL AFTER `item_id`,
-                CHANGE `userID` `user_id` int(10) NOT NULL AFTER `collection_id`,
-                CHANGE `type` `action` enum('created', 'imported', 'updated', 'exported', 'deleted') NOT NULL AFTER `user_id`,
-                CHANGE `value` `change` text collate utf8_unicode_ci NOT NULL AFTER `action`,
-                CHANGE `time` `added` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `change`,
-                CHANGE `title` `title` text COLLATE utf8_unicode_ci AFTER `added`,
-                ADD INDEX (`item_id`),
-                ADD INDEX (`change` (50)),
-                ADD INDEX (`added`),
-                ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
-            ";
-            $db->query($sql);
-
-            // Convert serialized values into standard fields.
-            // Get current serialized values.
-            $table = $db->getTable('HistoryLogEntry');
-            $alias = $table->getTableAlias();
-            $select = $table->getSelect();
-            $select->reset(Zend_Db_Select::COLUMNS);
-            $select->from(array(), array(
-                $alias . '.id',
-                $alias . '.change',
-            ));
-            $select->where($alias . '.change LIKE "a:%;}"');
-            $result = $table->fetchAll($select);
-
-            if ($result) {
-                // Prepare the sql for update.
-                $sql = "
-                    UPDATE `{$db->HistoryLogEntry}`
-                    SET `change` = ?
-                    WHERE `id` = ?;
-                ";
-                try {
-                    foreach ($result as $key => $value) {
-                        $id = $value['id'];
-                        $change = $value['change'];
-                        // Check if "change" is empty or a string that isn't serialized.
-                        // Should not go here.
-                        if (empty($change) || @unserialize($change) === false) {
-                            continue;
-                        }
-                        $change = unserialize($change);
-                        $change = '[ ' . implode(' ', $change) . ' ]';
-                        $db->query($sql, array($change, $id));
-                    }
-                    $msg = __('Updated %d / %d serialized history log entries.', $key + 1, count($result));
-                    _log($msg);
-                } catch (Exception $e) {
-                    $msg = __('Updated %d / %d serialized history log entries.', $key, count($result));
-                    throw new Exception($e->getMessage() . "\n" . $msg);
-                }
-            }
-        }
-
-        if (version_compare($oldVersion, '2.5', '<')) {
-            // Allows each type of record to be logged.
-            // "record_type" can't be null, but mysql takes the first of "enum".
-            $sql = "
-                ALTER TABLE `{$db->HistoryLogEntry}`
-                ADD `record_type` enum('Item', 'Collection', 'File') NOT NULL AFTER `id`,
-                CHANGE `item_id` `record_id` int(10) NOT NULL AFTER `record_type`,
-                CHANGE `collection_id` `part_of` int(10) NOT NULL DEFAULT 0 AFTER `record_id`,
-                CHANGE `action` `operation` enum('created', 'imported', 'updated', 'exported', 'deleted') NOT NULL AFTER `user_id`,
-                DROP INDEX `item_id`,
-                DROP INDEX `change`,
-                DROP INDEX `added`,
-                ADD INDEX `record_type_record_id` (`record_type`, `record_id`),
-                ADD INDEX (`change` (50)),
-                ADD INDEX (`added`)
-            ";
-            $db->query($sql);
-        }
-
-        if (version_compare($oldVersion, '2.5.1', '<')) {
-            // Simplify the name of operations and reorder them to group
-            // "import" and "export" at the end of the list, because they are
-            // different (not crud).
-            // Set the default value to empty string for text fields to avoid null.
-            try {
-                $sql = "
-                    ALTER TABLE `{$db->HistoryLogEntry}`
-                    CHANGE `operation` `operation` enum('created', 'imported', 'updated', 'exported', 'deleted', 'create', 'update', 'delete', 'import', 'export') NOT NULL AFTER `user_id`,
-                    CHANGE `change` `change` text collate utf8_unicode_ci NOT NULL AFTER `operation`,
-                    CHANGE `added` `added` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER `change`,
-                    CHANGE `title` `title` mediumtext COLLATE utf8_unicode_ci NOT NULL AFTER `added`
-                ";
-                $db->query($sql);
-                $msg = __('Success of upgrade of the table (%s).', '2.5.1');
-                _log($msg);
-            } catch (Exception $e) {
-                $msg = __('Fail during upgrade of the table (%s).', '2.5.1');
-                throw new Exception($e->getMessage() . "\n" . $msg);
-            }
-
-            try {
-                // Second step to simplify the name of operations.
-                $sql = "
-                    UPDATE `{$db->HistoryLogEntry}`
-                    SET `operation` =
-                        CASE
-                            WHEN operation = 'created' THEN 'create'
-                            WHEN operation = 'updated' THEN 'update'
-                            WHEN operation = 'deleted' THEN 'delete'
-                            WHEN operation = 'imported' THEN 'import'
-                            WHEN operation = 'exported' THEN 'export'
-                        END
-                ";
-                $db->query($sql);
-                $msg = __('Success of the second step to rename the operations.');
-                _log($msg);
-
-                // End of the simplification of the name of operations.
-                $sql = "
-                    ALTER TABLE `{$db->HistoryLogEntry}`
-                    CHANGE `operation` `operation` enum('create', 'update', 'delete', 'import', 'export') NOT NULL AFTER `user_id`
-                ";
-                $db->query($sql);
-                $msg = __('Success of the last step to rename the operations.');
-                _log($msg);
-            } catch (Exception $e) {
-                $msg = __('Fail during the rename of the operations.');
-                throw new Exception($e->getMessage() . "\n" . $msg);
-            }
-
-            // Separate creation and import in order to log elements set during
-            // creation. Old import won't have info about creation of elements.
-            $sql = "
-                UPDATE `{$db->HistoryLogEntry}`
-                SET `operation` = 'import'
-                WHERE `operation` = 'create'
-                    AND `change` IS NOT NULL
-                    AND `change` != ''
-            ";
-            $db->query($sql);
-
-            // Import will have a log for creation, but with only one change for
-            // the title, if any.
-            $titleElement = $db->getTable('Element')->findByElementSetNameAndElementName('Dublin Core', 'Title');
-            $titleElementId = $titleElement->id;
-            $checkTitle = "IF(title = '', '', IF(title = 'untitled / title unknown', '',  '[ $titleElementId ]'))";
-            $sql = "
-                INSERT INTO `{$db->HistoryLogEntry}` (`record_type`, `record_id`, `part_of`, `user_id`, `operation`, `change`, `added`, `title`)
-                SELECT record_type, record_id, part_of, user_id, 'create', $checkTitle, added, title
-                FROM {$db->HistoryLogEntry}
-                WHERE `operation` = 'import'
-            ";
-            $db->query($sql);
-        }
+        require_once dirname(__FILE__) . DIRECTORY_SEPARATOR . 'upgrade.php';
     }
 
     /**
@@ -251,12 +106,11 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     public function hookUninstall()
     {
-        try {
-            $sql = "DROP TABLE IF EXISTS `{$this->_db->HistoryLogEntry}`";
-            $this->_db-> query($sql);
-        } catch(Exception $e) {
-            throw $e;
-        }
+        $db = $this->_db;
+        $sql = "DROP TABLE IF EXISTS `{$db->HistoryLogEntry}`";
+        $db-> query($sql);
+        $sql = "DROP TABLE IF EXISTS `{$db->HistoryLogChange}`";
+        $db-> query($sql);
     }
 
     /**
@@ -264,7 +118,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     public function hookUninstallMessage()
     {
-        echo __('Warning: All the history log entries will be deleted.');
+        echo __('%sWarning%s: All the history log entries will be deleted.', '<strong>', '</strong>');
     }
 
     /**
@@ -450,18 +304,33 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         $view = $args['view'];
 
         $logEntry = $this->_db->getTable('HistoryLogEntry')
-            ->findBy(
-                array(
-                    'record' => $record,
-                    'sort_field' => 'added',
-                    'sort_dir' => 'd',
-                ), 1);
+            ->getLastEntryForRecord($record);
         if ($logEntry) {
-            $logEntry = reset($logEntry);
-            echo '<div class="history-log">'
-                . __('Last change on %s by %s.',
-                    $logEntry->displayAdded(), $logEntry->displayUser())
-                . '</div>';
+            $html = '<div class="history-log">';
+            switch ($logEntry->operation) {
+                case HistoryLogEntry::OPERATION_CREATE:
+                    $html .= __('Created on %s by %s.',
+                        $logEntry->displayAdded(), $logEntry->displayUser());
+                    break;
+                case HistoryLogEntry::OPERATION_UPDATE:
+                    $html .= __('Updated on %s by %s.',
+                        $logEntry->displayAdded(), $logEntry->displayUser());
+                    break;
+                case HistoryLogEntry::OPERATION_DELETED:
+                    $html .= __('Deleted on %s by %s.',
+                        $logEntry->displayAdded(), $logEntry->displayUser());
+                    break;
+                case HistoryLogEntry::OPERATION_IMPORT:
+                    $html .= __('Imported on %s by %s.',
+                        $logEntry->displayAdded(), $logEntry->displayUser());
+                    break;
+                case HistoryLogEntry::OPERATION_EXPORT:
+                    $html .= __('Exported on %s by %s.',
+                        $logEntry->displayAdded(), $logEntry->displayUser());
+                    break;
+            }
+            $html .= '</div>';
+            echo $html;
         }
     }
 
@@ -552,17 +421,20 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 
         $logEntry = new HistoryLogEntry();
         try {
+            // Prepare the log entry.
             $result = $logEntry->logEvent($record, $user, $operation, $change);
-            // Quick check to avoid a save process.
-            if ($result) {
-              $result = $logEntry->save();
+            // Quick check if the record is loggable.
+            if (!$result) {
+                throw new Exception(__('This event is not loggable.'));
+            }
+
+            // Only save if this is a useful.
+            $result = $logEntry->saveIfChanged();
+            if ($result === false) {
+                throw new Exception(__('Could not log info.'));
             }
         } catch(Exception $e) {
             throw $e;
-        }
-
-        if (!$result) {
-            throw new Exception(__('Could not log info.'));
         }
     }
 }

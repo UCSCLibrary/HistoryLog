@@ -26,7 +26,7 @@ if (iterator_count(loop('HistoryLogEntry'))):
         $row[] = $logEntry->title;
         $row[] = $logEntry->displayUser();
         $row[] = $logEntry->displayOperation();
-        $row[] = $logEntry->displayChange();
+        $row[] = $logEntry->displayChanges();
         $row[] = $logEntry->displayAdded();
         echo $enclosure . implode($separator, $row) . $enclosure . $endOfLine;
     endforeach;
