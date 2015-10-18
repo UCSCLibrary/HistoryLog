@@ -11,19 +11,25 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
      *
      * @param array $params A set of parameters by which to filter the objects
      * that get returned from the database.
+     * @param string $since Set the start date.
+     * @param string $until Set the end date (not included).
+     * @param User|integer $user Limit to a user.
      * @param integer $limit Number of objects to return per "page".
      * @param integer $page Page to retrieve.
      * @return array|null The set of objects that is returned.
      */
-    public function getEntries($params, $start = null, $end = null, $limit = null, $page = null)
+    public function getEntries($params, $since = null, $until = null, $user = null, $limit = null, $page = null)
     {
-        if (!empty($start)) {
-            $params['since'] = $start;
+        if (!empty($since)) {
+            $params['since'] = $since;
         }
-        if (!empty($end)) {
-            $params['until'] = $end;
+        if (!empty($until)) {
+            $params['until'] = $until;
         }
-        return $this->findBy($params);
+        if (!empty($user)) {
+            $params['user'] = $user;
+        }
+        return $this->findBy($params, $limit, $page);
     }
 
     /**
@@ -171,7 +177,7 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
                     break;
                 case 'collection':
                     if ($params['record_type'] == 'Item') {
-                        $select->where($alias . '.part_of = ?', $value);
+                        $select->where("`$alias`.`part_of` = ?", $value);
                     }
                     break;
                 case 'item':
@@ -179,8 +185,9 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
                        $this->filterColumnByRange($select, $value, 'part_of');
                     }
                     break;
-                case 'user_id':
-                    $this->filterByUser($select, $value, 'user_id');
+                case 'user':
+                    $userId = (integer) (is_object($value) ? $value->id : $value);
+                    $this->filterByUser($select, $userId, 'user_id');
                     break;
                 case 'since':
                     if (strtolower($value) != 'yyyy-mm-dd') {

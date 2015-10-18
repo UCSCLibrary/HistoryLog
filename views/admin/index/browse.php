@@ -33,7 +33,7 @@ div.record-title {
                     $browseHeadings[__('Type')] = 'record_type';
                     $browseHeadings[__('Id')] = 'record_id';
                     $browseHeadings[__('Part of ')] = 'part_of';
-                    $browseHeadings[__('User')] = 'user_id';
+                    $browseHeadings[__('User')] = 'user';
                     $browseHeadings[__('Action')] = 'operation';
                     $browseHeadings[__('Changes')] = null;
                     echo browse_sort_links($browseHeadings, array('link_tag' => 'th scope="col"', 'list_tag' => ''));
