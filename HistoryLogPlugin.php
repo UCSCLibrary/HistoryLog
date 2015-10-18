@@ -61,10 +61,10 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
                 `record_id` int(10) NOT NULL,
                 `part_of` int(10) NOT NULL DEFAULT 0,
                 `user_id` int(10) NOT NULL,
-                `operation` enum('created', 'imported', 'updated', 'exported', 'deleted') NOT NULL,
+                `operation` enum('create', 'update', 'delete', 'import', 'export') NOT NULL,
                 `change` text collate utf8_unicode_ci NOT NULL,
-                `added` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                `title` text COLLATE utf8_unicode_ci,
+                `added` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                `title` mediumtext COLLATE utf8_unicode_ci NOT NULL,
                 PRIMARY KEY (`id`),
                 KEY `record_type_record_id` (`record_type`, `record_id`),
                 KEY (`change` (50)),
@@ -165,6 +165,82 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
             ";
             $db->query($sql);
         }
+
+        if (version_compare($oldVersion, '2.5.1', '<')) {
+            // Simplify the name of operations and reorder them to group
+            // "import" and "export" at the end of the list, because they are
+            // different (not crud).
+            // Set the default value to empty string for text fields to avoid null.
+            try {
+                $sql = "
+                    ALTER TABLE `{$db->HistoryLogEntry}`
+                    CHANGE `operation` `operation` enum('created', 'imported', 'updated', 'exported', 'deleted', 'create', 'update', 'delete', 'import', 'export') NOT NULL AFTER `user_id`,
+                    CHANGE `change` `change` text collate utf8_unicode_ci NOT NULL AFTER `operation`,
+                    CHANGE `added` `added` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER `change`,
+                    CHANGE `title` `title` mediumtext COLLATE utf8_unicode_ci NOT NULL AFTER `added`
+                ";
+                $db->query($sql);
+                $msg = __('Success of upgrade of the table (%s).', '2.5.1');
+                _log($msg);
+            } catch (Exception $e) {
+                $msg = __('Fail during upgrade of the table (%s).', '2.5.1');
+                throw new Exception($e->getMessage() . "\n" . $msg);
+            }
+
+            try {
+                // Second step to simplify the name of operations.
+                $sql = "
+                    UPDATE `{$db->HistoryLogEntry}`
+                    SET `operation` =
+                        CASE
+                            WHEN operation = 'created' THEN 'create'
+                            WHEN operation = 'updated' THEN 'update'
+                            WHEN operation = 'deleted' THEN 'delete'
+                            WHEN operation = 'imported' THEN 'import'
+                            WHEN operation = 'exported' THEN 'export'
+                        END
+                ";
+                $db->query($sql);
+                $msg = __('Success of the second step to rename the operations.');
+                _log($msg);
+
+                // End of the simplification of the name of operations.
+                $sql = "
+                    ALTER TABLE `{$db->HistoryLogEntry}`
+                    CHANGE `operation` `operation` enum('create', 'update', 'delete', 'import', 'export') NOT NULL AFTER `user_id`
+                ";
+                $db->query($sql);
+                $msg = __('Success of the last step to rename the operations.');
+                _log($msg);
+            } catch (Exception $e) {
+                $msg = __('Fail during the rename of the operations.');
+                throw new Exception($e->getMessage() . "\n" . $msg);
+            }
+
+            // Separate creation and import in order to log elements set during
+            // creation. Old import won't have info about creation of elements.
+            $sql = "
+                UPDATE `{$db->HistoryLogEntry}`
+                SET `operation` = 'import'
+                WHERE `operation` = 'create'
+                    AND `change` IS NOT NULL
+                    AND `change` != ''
+            ";
+            $db->query($sql);
+
+            // Import will have a log for creation, but with only one change for
+            // the title, if any.
+            $titleElement = $db->getTable('Element')->findByElementSetNameAndElementName('Dublin Core', 'Title');
+            $titleElementId = $titleElement->id;
+            $checkTitle = "IF(title = '', '', IF(title = 'untitled / title unknown', '',  '[ $titleElementId ]'))";
+            $sql = "
+                INSERT INTO `{$db->HistoryLogEntry}` (`record_type`, `record_id`, `part_of`, `user_id`, `operation`, `change`, `added`, `title`)
+                SELECT record_type, record_id, part_of, user_id, 'create', $checkTitle, added, title
+                FROM {$db->HistoryLogEntry}
+                WHERE `operation` = 'import'
+            ";
+            $db->query($sql);
+        }
     }
 
     /**
@@ -245,18 +321,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 
         // If it's not a new record, check for changes.
         if (empty($args['insert'])) {
-            try {
-                $changedElements = $this->_findChanges($record);
-
-                // Log record update for each changed elements.
-                if ($changedElements) {
-                    $this->_logRecord($record, 'updated', $changedElements);
-                } else {
-                    //TODO still do updates here
-                }
-            } catch(Exception $e) {
-                throw $e;
-            }
+            $this->_logEvent($record, HistoryLogEntry::OPERATION_UPDATE);
         }
     }
 
@@ -274,30 +339,13 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
             return;
         }
 
-        $source = '';
-
-        if ($request = Zend_Controller_Front::getInstance()->getRequest()) {
-            if (strpos('nuxeo-link', current_url())) {
-                $source = 'Nuxeo';
+        // If it's a new record, imported or manually created.
+        if (!empty($args['insert'])) {
+            $imported = $this->_isImported();
+            if ($imported) {
+                $this->_logEvent($record, HistoryLogEntry::OPERATION_IMPORT, $imported);
             }
-            elseif (strpos('youtube', current_url())) {
-                $source = 'YouTube';
-            }
-            elseif (strpos('flickr', current_url())) {
-                $source = 'Flickr';
-            }
-        } else {
-            $source = __('background script');
-        }
-
-        // If it's a new record.
-        if (isset($args['insert']) && $args['insert']) {
-            try {
-                // Log new record.
-                $this->_logRecord($record, 'created', $source);
-            } catch(Exception $e) {
-                throw $e;
-            }
+            $this->_logEvent($record, HistoryLogEntry::OPERATION_CREATE);
         }
     }
 
@@ -314,11 +362,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
             return;
         }
 
-        try {
-            $this->_logRecord($record, 'deleted', null);
-        } catch(Exception $e) {
-            throw $e;
-        }
+        $this->_logEvent($record, HistoryLogEntry::OPERATION_DELETE);
     }
 
     public function hookExport($args)
@@ -331,7 +375,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
                     'record_type' => 'Item',
                     'record_id' => $id,
                 ),
-                'exported',
+                HistoryLogEntry::OPERATION_EXPORT,
                 $service);
         }
     }
@@ -449,7 +493,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     }
 
     /**
-     * Check if a record is loggable (item, collection, file).
+     * Quickly check if a record is loggable (item, collection, file).
      *
      * @param Record $record
      * @return boolean
@@ -460,88 +504,65 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     }
 
     /**
+     * Check if a record is imported.
+     *
+     * @return string Origin of the import, else, if empty, created manually.
+     */
+    protected function _isImported()
+    {
+        $imported = '';
+        $request = Zend_Controller_Front::getInstance()->getRequest();
+        if ($request) {
+            $url = current_url();
+            if (strpos('nuxeo-link', $url)) {
+                $imported = 'Nuxeo';
+            }
+            elseif (strpos('youtube', $url)) {
+                $imported = 'YouTube';
+            }
+            elseif (strpos('flickr', $url)) {
+                $imported = 'Flickr';
+            }
+            // Else manually created.
+        }
+        // Else background script.
+        else {
+            $imported = __('Background script');
+        }
+        return $imported;
+    }
+
+    /**
      * Create a new history log entry.
      *
-     * @param Object $record The Omeka record to log.
-     * @param string $operation The type of event to log (e.g. "created"...).
+     * @uses HistoryLogEntry::logEvent()
+     *
+     * @param Object|array $record The Omeka record to log.
+     * @param string $operation The type of event to log (e.g. "create"...).
      * @param string|array $change An extra piece of type specific data for the
      * log.
      * @return void
      */
-    private function _logRecord($record, $operation, $change)
+    private function _logEvent($record, $operation, $change = null)
     {
-        $currentUser = current_user();
-        if (is_null($currentUser)) {
+        $user = current_user();
+        if (is_null($user)) {
             throw new Exception(__('Could not retrieve user info.'));
         }
 
         $logEntry = new HistoryLogEntry();
         try {
-            $logEntry->setRecord($record);
-            $logEntry->setUserId($currentUser->id);
-            $logEntry->setOperation($operation);
-            $logEntry->setChange($change);
-            $logEntry->save();
-        } catch(Exception $e) {
-            throw $e;
-        }
-    }
-
-    /**
-     * If a record  is being updated, find out which elements are being altered.
-     *
-     * @param Object $record The updated omeka record
-     * @return array $changedElements An array of element IDs of altered elements
-     */
-    private function _findChanges($record)
-    {
-        if (!isset($record->Elements)) {
-            return false;
-        }
-        $newElements = $record->Elements;
-
-        $changedElements = array();
-        try {
-            $oldRecord = get_record_by_id(get_class($record), $record->id);
+            $result = $logEntry->logEvent($record, $user, $operation, $change);
+            // Quick check to avoid a save process.
+            if ($result) {
+              $result = $logEntry->save();
+            }
         } catch(Exception $e) {
             throw $e;
         }
 
-        foreach ($newElements as $newElementID => $newElementTexts) {
-            $flag = false;
-
-            try {
-                $element = get_record_by_id('Element', $newElementID);
-                $oldElementTexts = $oldRecord->getElementTextsByRecord($element);
-            } catch(Exception $e) {
-                throw $e;
-            }
-
-            $oldETextsArray = array();
-            foreach ($oldElementTexts as $oldElementText) {
-                $oldETextsArray[] = $oldElementText['text'];
-            }
-
-            $i = 0;
-            foreach ($newElementTexts as $newElementText) {
-                if ($newElementText['text'] !== '') {
-                    $i++;
-
-                    if (!in_array($newElementText['text'], $oldETextsArray)) {
-                        $flag = true;
-                    }
-                }
-            }
-
-            if ($i !== count($oldETextsArray)) {
-                $flag = true;
-            }
-
-            if ($flag) {
-                $changedElements[] = $newElementID;
-            }
+        if (!$result) {
+            throw new Exception(__('Could not log info.'));
         }
-
-        return $changedElements;
     }
 }

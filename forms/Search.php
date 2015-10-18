@@ -52,7 +52,7 @@ class HistoryLog_Form_Search extends Omeka_Form
         $this->addElement('select', 'record_type', array(
             'label' => __('Record Type'),
             'description' => __("The type of record whose log information will be retrieved."),
-            'value' => '0',
+            'value' => '',
             'order' => 1,
             'validators' => array(
                 'alnum',
@@ -65,7 +65,7 @@ class HistoryLog_Form_Search extends Omeka_Form
         $this->addElement('select', 'collection', array(
             'label' => __('Collection'),
             'description' => __("If record type is %sItem%s, the collection whose items' log information will be retrieved.", '<strong>', '</strong>'),
-            'value' => '0',
+            'value' => '',
             'order' => 2,
             'validators' => array(
                 'digits',
@@ -90,7 +90,7 @@ class HistoryLog_Form_Search extends Omeka_Form
         $this->addElement('select', 'user', array(
             'label' => __('User(s)'),
             'description' => __('All administrator users whose edits will be retrieved.'),
-            'value' => '0',
+            'value' => '',
             'order' => 4,
             'validators' => array(
                 'digits',
@@ -103,7 +103,7 @@ class HistoryLog_Form_Search extends Omeka_Form
         $this->addElement('select', 'operation', array(
             'label' => __('Operation'),
             'description' => __('Logged curatorial operations to retrieve in this report.'),
-            'value' => '0',
+            'value' => '',
             'order' => 5,
             'validators' => array(
                 'alnum',
@@ -134,7 +134,7 @@ class HistoryLog_Form_Search extends Omeka_Form
         $this->addElement('text', 'until', array(
             'label' => __('End Date'),
             'description' => __('The latest date, not included, from which to retrieve logs.'),
-            'value' => 'yyyy-mm-dd',
+            'value' => 'YYYY-MM-DD',
             'order' => 7,
             'style' => 'max-width: 120px;',
             'required' => false,
@@ -166,7 +166,7 @@ class HistoryLog_Form_Search extends Omeka_Form
 
         // Submit.
         $this->addElement('submit', 'submit-search', array(
-            'label' => __('Search / Report'),
+            'label' => __('Report'),
         ));
         // TODO Add decorator as in "items/search-form.php" for scroll.
 
@@ -263,11 +263,11 @@ class HistoryLog_Form_Search extends Omeka_Form
     {
         return array(
             '' => __('All Actions'),
-            'created' => __('Record Created'),
-            'imported' => __('Record Imported'),
-            'updated' => __('Record Updated'),
-            'exported' => __('Record Exported'),
-            'deleted' => __('Record Deleted'),
+            HistoryLogEntry::OPERATION_CREATE => __('Record Created'),
+            HistoryLogEntry::OPERATION_UPDATE => __('Record Updated'),
+            HistoryLogEntry::OPERATION_DELETE => __('Record Deleted'),
+            HistoryLogEntry::OPERATION_IMPORT => __('Record Imported'),
+            HistoryLogEntry::OPERATION_EXPORT => __('Record Exported'),
         );
     }
 }

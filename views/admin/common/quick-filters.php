@@ -8,11 +8,11 @@
         <li><a href="<?php echo url('history-log', array('record_type' => 'Collection')); ?>"><?php echo __('Collections'); ?></a></li>
         <li><a href="<?php echo url('history-log', array('record_type' => 'File')); ?>"><?php echo __('Files'); ?></a></li>
         <li><span style="font-weight: bold; font-style: italic; padding-left: 4px; background-color:#fff;"><?php echo __('Actions'); ?></span></li>
-        <li><a href="<?php echo url('history-log', array('operation' => 'created')); ?>"><?php echo __('Created'); ?></a></li>
-        <li><a href="<?php echo url('history-log', array('operation' => 'imported')); ?>"><?php echo __('Imported'); ?></a></li>
-        <li><a href="<?php echo url('history-log', array('operation' => 'updated')); ?>"><?php echo __('Updated'); ?></a></li>
-        <li><a href="<?php echo url('history-log', array('operation' => 'exported')); ?>"><?php echo __('Exported'); ?></a></li>
-        <li><a href="<?php echo url('history-log', array('operation' => 'deleted')); ?>"><?php echo __('Deleted'); ?></a></li>
+        <li><a href="<?php echo url('history-log', array('operation' => 'create')); ?>"><?php echo __('Create'); ?></a></li>
+        <li><a href="<?php echo url('history-log', array('operation' => 'update')); ?>"><?php echo __('Update'); ?></a></li>
+        <li><a href="<?php echo url('history-log', array('operation' => 'delete')); ?>"><?php echo __('Delete'); ?></a></li>
+        <li><a href="<?php echo url('history-log', array('operation' => 'import')); ?>"><?php echo __('Import'); ?></a></li>
+        <li><a href="<?php echo url('history-log', array('operation' => 'export')); ?>"><?php echo __('Export'); ?></a></li>
         <li><span style="font-weight: bold; font-style: italic; padding-left: 4px; background-color:#fff;"><?php echo __('Date'); ?></span></li>
         <li><a href="<?php echo url('history-log', array('added' => date('Y-m-d', time()))); ?>"><?php echo __('Today'); ?></a></li>
         <li><a href="<?php echo url('history-log', array('since' => date('Y-m-d', strtotime('monday this week')))); ?>"><?php echo __('This Week'); ?></a></li>
