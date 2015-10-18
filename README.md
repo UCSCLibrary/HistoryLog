@@ -17,6 +17,15 @@ Uncompress files and rename plugin folder "HistoryLog".
 Then install it like any other Omeka plugin.
 
 
+Notes
+-----
+
+- Logging is done via standard hooks. If a plugin bypasses the standard methods,
+some logs may be missing.
+- Some standard methods don't use hooks, for example `deleteElementTextsByElementId()`.
+They should not be used internally. Omeka uses them, but fires hooks anyway.
+
+
 Warning
 -------
 
