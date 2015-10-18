@@ -1,4 +1,7 @@
 <?php
+/**
+ * The table for History Log Entries.
+ */
 class Table_HistoryLogEntry extends Omeka_Db_Table
 {
     /**
@@ -22,6 +25,100 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
     }
 
     /**
+     * Return the list of all element ids that have been altered for a record.
+     *
+     * @todo This may be simpler with a separate table, but this is rarely used.
+     *
+     * @param Object|array $record
+     * @param array|string $operation Limit the search to created or updated.
+     * @return array|null The list of element ids that have been altered for a
+     * record.
+     */
+    public function getAlteredElementIds($record, $operation = null)
+    {
+        $operationsWithElements = array(
+            HistoryLogEntry::OPERATION_CREATED,
+            HistoryLogEntry::OPERATION_UPDATED,
+        );
+
+        $params = array();
+        $params['record'] = $record;
+
+        // Quick check of operation.
+        if (is_null($operation)) {
+            $params['operation'] = $operationsWithElements;
+        }
+        // Only some operations have element ids.
+        else {
+            if (!is_array($operation)) {
+                $operation = array($operation);
+            }
+            $operation = array_intersect($operation, $operationsWithElements);
+            if (empty($operation)) {
+                return array();
+            }
+            $params['operation'] = $operation;
+        }
+
+        $alias = $this->getTableAlias();
+        $select = $this->getSelect();
+        $this->applySearchFilters($select, $params);
+
+        $select
+            ->reset(Zend_Db_Select::COLUMNS)
+            ->columns('change')
+            // Remove empty values for change.
+            ->where("`$alias`.`change` != ''");
+
+        $changes = $this->_db->query($select, array())->fetchAll();
+        $result = array();
+        foreach ($changes as $change) {
+            $change = explode(' ', trim($change, '[ ]'));
+            $result = array_merge($result, $change);
+        }
+        return array_filter($result);
+    }
+
+    /**
+     * Return the last entriy for elements of a record.
+     *
+     * @param Object|array $record
+     * @param array|Object|integer $elements All altered elements if empty.
+     * @return array|null The last entry if any for each element of the record.
+     * Null if empty record.
+     */
+    public function getLastEntryForElements($record, $elements = array())
+    {
+        if (!is_array($elements)) {
+            $elements = array($elements);
+        }
+
+        // Elements can't be get from the current list of elements, because some
+        // may be deleted, so they are get from all entries of the record.
+        if (empty($elements)) {
+            $elements = $this->getAlteredElementIds(array('record' => $record));
+        }
+
+        // TODO Search the "one query" to get the result without loop.
+        $entries = array();
+        foreach ($elements as $element) {
+            $elementId = is_object($element)
+                ? $element->id :
+                (integer) $element;
+            $params = array(
+                'record' => $record,
+                'element' => $elementId,
+                'sort_field' => 'added',
+                'sort_dir' => 'd',
+            );
+            $result = $this->findBy($params, 1);
+            $entries[$elementId] = $result ? reset($result) : null;
+        }
+
+        return $entries;
+    }
+
+    /**
      * Return last entry for a record.
      *
      * @param Object|array $record
@@ -30,16 +127,8 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
      */
     public function getLastEntryForElement($record, $element)
     {
-        $params = array(
-            'record' => $record,
-            'element' => $element,
-            'sort_field' => 'added',
-            'sort_dir' => 'd',
-        );
-        $entries = $this->findBy($params, 1);
-        if ($entries) {
-            return reset($entries);
-        }
+        $entries = $this->getLastEntryForElements($record, array($element));
+        return reset($entries);
     }
 
     /**
@@ -100,20 +189,26 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
      * Filter entry by record.
      *
      * @see self::applySearchFilters()
-     * @param Omeka_Db_Select
-     * @param Record.
+     * @param Omeka_Db_Select $select
+     * @param Record|array $record
      */
     public function filterByRecord($select, $record)
     {
+        $recordType = '';
+        // Manage the case where the record is a new one.
+        $recordId = 0;
         if (is_array($record)) {
-            $recordType = Inflector::classify($record['record_type']);
-            $recordId = (integer) $record['record_id'];
+            if (!empty($record['record_type']) && !empty($record['record_id'])) {
+                $recordType = Inflector::classify($record['record_type']);
+                $recordId = (integer) $record['record_id'];
+            }
         }
         // Convert the record.
-        else {
+        elseif ($record) {
             $recordType = get_class($record);
-            $recordId =$record->id;
+            $recordId = $record->id ?: 0;
         }
+
         $alias = $this->getTableAlias();
         $select->where($alias . '.record_type = ?', $recordType);
         $select->where($alias . '.record_id = ?', $recordId);
