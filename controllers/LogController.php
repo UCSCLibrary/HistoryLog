@@ -12,23 +12,21 @@
  * @package HistoryLog
  */
 class HistoryLog_LogController extends Omeka_Controller_AbstractActionController
-{
-    /**
-     * Set up the view for full record reports.
-     *
-     * @return void
-     */
-    public function logAction()
-    {
-        $flashMessenger = $this->_helper->FlashMessenger;
-        $recordType = $this->_getParam('type');
-        $recordId = $this->_getParam('id');
-        if (empty($recordType) || empty($recordId)) {
-            $flashMessenger->addMessage(__('Record not selected.'), 'error');
-        }
-        $this->view->record = array(
-            'record_type' => Inflector::classify($recordType),
-            'record_id' => (integer) $recordId,
-        );
-    }
+{    
+ 
+  /**
+   *Set up the view for full item reports
+   *
+   *@return void
+   */
+  public function showAction()
+  {
+
+    $flashMessenger = $this->_helper->FlashMessenger;
+    $item = $this->_getParam('item');
+    if(empty($item))
+      $flashMessenger->addMessage("Item not selected.","error");
+    $this->view->itemID = $item;
+  }
+
 }
