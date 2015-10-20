@@ -6,6 +6,20 @@ if (version_compare($oldVersion, '2.4', '<')) {
     // TODO Check if the structure is already upgraded in case of a bug.
     // Reorder columns and change name of columns "type" to "action".,
     // "value" to "change" and "time" to "added".
+ 
+    // First, remove all null values that could be present in columns
+    // which are being changed to NOT NULL
+    $null_columns = array('itemID',
+                          'collectionID',
+                          'userID',
+                          'type',
+                          'value');
+    foreach ($null_columns as $column) {
+        $sql = "UPDATE `{$db->HistoryLogEntry}` SET `$column`=\"\" where `$column` IS NULL";
+        $db->query($sql);
+    }
+
+    // Then alter the table, knowing that no null values can cause errors
     $sql = "
         ALTER TABLE `{$db->HistoryLogEntry}`
         CHANGE `itemID` `item_id` int(10) NOT NULL AFTER `id`,
