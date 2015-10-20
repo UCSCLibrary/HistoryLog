@@ -338,7 +338,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
                     $html .= __('Updated on %s by %s.',
                         $logEntry->displayAdded(), $logEntry->displayUser());
                     break;
-                case HistoryLogEntry::OPERATION_DELETED:
+                case HistoryLogEntry::OPERATION_DELETE:
                     $html .= __('Deleted on %s by %s.',
                         $logEntry->displayAdded(), $logEntry->displayUser());
                     break;
