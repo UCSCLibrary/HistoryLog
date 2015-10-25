@@ -822,7 +822,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
      * Helper to find out altered elements of a created record.
      *
      * Notes:
-     * - Each text of repetitive field is returned.
+     * - Each text of repeatable field is returned.
      * - Checks are done according to the natural order.
      *
      * @param Record $record Record must be an object.
@@ -879,7 +879,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
      * Helper to prepare altered elements of an updated  record.
      *
      * Notes:
-     * - Each text of repetitive field is returned.
+     * - Each text of repeatable field is returned.
      * - Checks are done according to the natural order.
      *
      * @param Record $record Record must be an object.
@@ -949,7 +949,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
      * Helper to find out altered elements of an updated  record.
      *
      * Notes:
-     * - Each text of repetitive field is returned.
+     * - Each text of repeatable field is returned.
      * - Checks are done according to the natural order.
      *
      * @param Record $record Record must be an object.
@@ -1087,7 +1087,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
      * Helper to find out all elements of a deleted record.
      *
      * Notes:
-     * - Each text of repetitive field is returned.
+     * - Each text of repeatable field is returned.
      * - Checks are done according to the natural order.
      *
      * @param Record $record Record must be an object.

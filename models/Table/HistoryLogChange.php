@@ -177,13 +177,13 @@ class Table_HistoryLogChange extends Omeka_Db_Table
      * Count all records with the specified text for an element during a period.
      *
      * This is useful for elements with a limited vocabulary and without
-     * repetitive values. For example, it allows to respond to a query such "How
+     * repeatable values. For example, it allows to respond to a query such "How
      * many records have the element "Metadata Status" set to "Published" by
      * user "John Smith" during "September 2015"?" (example used by the plugin
      * "Curator Monitor"). The interpretation of this count is harder when there
      * are multiple values for the same element.
      *
-     * @todo Manage repetitive values.
+     * @todo Manage repeatable values.
      * @todo Manage deletion of records.
      * @todo Import/Export are not checked (element_id = "0").
      *
