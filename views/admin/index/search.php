@@ -12,6 +12,15 @@ $head = array(
     'bodyclass' => 'history-log search',
 );
 echo head($head);
-echo flash();
-echo $form;
-echo foot();
+?>
+<div id="primary">
+    <?php echo flash(); ?>
+<?php if (total_records('HistoryLogEntry') > 0): ?>
+    <div><?php echo common('quick-filters'); ?></div>
+    <br class="clear" />
+    <div><?php echo$form; ?></div>
+<?php else: ?>
+        <p><?php echo __('No entry have been logged.'); ?></p>
+<?php endif; ?>
+</div>
+<?php echo foot();

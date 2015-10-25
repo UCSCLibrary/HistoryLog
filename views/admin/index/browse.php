@@ -16,9 +16,7 @@ div.record-title {
 <div id="primary">
     <?php echo flash(); ?>
     <div>
-<?php if (total_records('HistoryLogEntry') == 0): ?>
-        <p><?php echo __('No entry have been logged.'); ?></p>
-<?php else: ?>
+<?php if (total_records('HistoryLogEntry') > 0): ?>
         <div class="table-actions">
             <a href="<?php echo html_escape(url('history-log/index/search')); ?>" class="add button small green"><?php echo __('Advanced Reports'); ?></a>
         </div>
@@ -100,8 +98,10 @@ div.record-title {
             <p><?php echo __('Display all %shistory log entries%s.', '<a href="' . url('history-log') . '">', "</a>"); ?></p>
         </div>
         <?php endif; ?>
-    </div>
+<?php else: ?>
+        <p><?php echo __('No entry have been logged.'); ?></p>
 <?php endif; ?>
+    </div>
 </div>
 <?php
-    echo foot();
+echo foot();

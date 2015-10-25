@@ -30,7 +30,6 @@ if (iterator_count(loop('HistoryLogEntry'))):
         $row[] = $logEntry->displayAdded();
         echo $enclosure . implode($separator, $row) . $enclosure . $endOfLine;
     endforeach;
-else: ?>
-    <strong><?php __('No matching logs found.'); ?></strong>
-<?php
+else:
+    echo __('No matching logs found.');
 endif;

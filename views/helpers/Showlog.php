@@ -26,7 +26,7 @@ class HistoryLog_View_Helper_Showlog extends Zend_View_Helper_Abstract
     /**
      * Create html with log information for a given record.
      *
-     * @param Record|array $record The record to retrieve info from.  It may be
+     * @param Record|array $record The record to retrieve info from. It may be
      * deleted.
      * @param int $limit The maximum number of log entries to retrieve.
      * @return string An html table of requested log information.

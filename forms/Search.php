@@ -21,20 +21,7 @@ class HistoryLog_Form_Search extends Omeka_Form
     public function init()
     {
         parent::init();
-        try {
-            $this->_registerElements();
-        } catch (Exception $e) {
-            throw $e;
-        }
-    }
 
-    /**
-     * Define the form elements.
-     *
-     * @return void
-     */
-    private function _registerElements()
-    {
         try {
             $recordTypeOptions = $this->_getRecordTypeOptions();
             $collectionOptions = $this->_getCollectionOptions();
@@ -113,7 +100,7 @@ class HistoryLog_Form_Search extends Omeka_Form
             'multiOptions' => $operationOptions,
         ));
 
-        // Operations.
+        // Elements.
         $this->addElement('select', 'element', array(
             'label' => __('Element'),
             'description' => __('Limit response with the selected element.')
@@ -127,7 +114,7 @@ class HistoryLog_Form_Search extends Omeka_Form
             'multiOptions' => $elementOptions,
         ));
 
-        // Dates.
+        // Date since.
         $this->addElement('text', 'since', array(
             'label' => __('Start Date'),
             'description' => __('The earliest date from which to retrieve logs.'),
@@ -146,6 +133,7 @@ class HistoryLog_Form_Search extends Omeka_Form
             )
         ));
 
+        // Date until.
         $this->addElement('text', 'until', array(
             'label' => __('End Date'),
             'description' => __('The latest date, not included, from which to retrieve logs.'),
@@ -218,7 +206,7 @@ class HistoryLog_Form_Search extends Omeka_Form
      * @return array $options An associative array of the logged record event
      * types.
      */
-    private function _getRecordTypeOptions()
+    protected function _getRecordTypeOptions()
     {
         return array(
             '' => __('All types of record'),
@@ -234,7 +222,7 @@ class HistoryLog_Form_Search extends Omeka_Form
      * @return array $collections An associative array of the collection IDs and
      * titles.
      */
-    private function _getCollectionOptions()
+    protected function _getCollectionOptions()
     {
         return get_table_options('Collection', __('All Collections'));
     }
@@ -242,10 +230,10 @@ class HistoryLog_Form_Search extends Omeka_Form
     /**
      * Retrieve Omeka Admin Users as selectable option list
      *
-     * @return array $collections An associative array of the userIds and
-     * usernames of all omeka users with admin privileges.
+     * @return array $users  An associative array of the user ids and usernames
+     * of all omeka users with admin privileges.
      */
-    private function _getUserOptions()
+    protected function _getUserOptions()
     {
         $options = array(
             '' => __('All Users'),
@@ -272,10 +260,9 @@ class HistoryLog_Form_Search extends Omeka_Form
     /**
      * Retrieve possible log operations as selectable option list.
      *
-     * @return array $options An associative array of the logged record event
-     * types.
+     * @return array $options An associative array of the operations.
      */
-    private function _getOperationOptions()
+    protected function _getOperationOptions()
     {
         return array(
             '' => __('All Actions'),
@@ -288,14 +275,13 @@ class HistoryLog_Form_Search extends Omeka_Form
     }
 
     /**
-     * Retrieve possible log operations as selectable option list.
+     * Retrieve possible elements as a selectable option list.
      *
      * @todo Add deleted elements that are used in old entries.
      *
-     * @return array $options An associative array of the logged record event
-     * types.
+     * @return array $options An associative array of the elements.
      */
-    private function _getElementOptions()
+    protected function _getElementOptions()
     {
         return get_table_options('Element', null, array(
             'record_types' => array('Item', 'All'),

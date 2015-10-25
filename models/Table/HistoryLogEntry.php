@@ -82,7 +82,7 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
     }
 
     /**
-     * Return the last entriy for elements of a record.
+     * Return the last entry for elements of a record.
      *
      * @param Object|array $record
      * @param array|Object|integer $elements All altered elements if empty.

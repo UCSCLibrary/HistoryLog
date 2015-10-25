@@ -88,7 +88,7 @@ class HistoryLog_Table_HistoryLogEntryTest extends HistoryLog_Test_AppTestCase
         $this->assertEquals(47, total_records('HistoryLogChange'));
     }
 
-    public function testLogAdvancedUpdate()
+    public function testAdvancedUpdate()
     {
         $item = $this->_createOne();
         $itemId = $item->id;

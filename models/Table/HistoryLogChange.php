@@ -105,7 +105,6 @@ class Table_HistoryLogChange extends Omeka_Db_Table
         return $this->_getFirstOrLastChanges($record, $elements, $onlyElements, 'last');
     }
 
-
     /**
      * Get the first or last change of each element of a record.
      *
@@ -277,7 +276,7 @@ class Table_HistoryLogChange extends Omeka_Db_Table
      * Apply a element filter to the select object.
      *
      * @see HistoryLogEntry::filterByChangedElement()
-     *@see self::applySearchFilters()
+     * @see self::applySearchFilters()
      * @param Omeka_Db_Select $select
      * @param Element|array|integer $elements One or multiple element or ids.
      * May be a "0" for non element change.
