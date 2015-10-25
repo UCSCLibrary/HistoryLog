@@ -35,6 +35,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         'after_save_record',
         'before_delete_record',
         'before_delete_element_text',
+        'before_delete_element',
         'export',
         'admin_items_show',
         'admin_collections_show',
@@ -357,7 +358,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     }
 
     /**
-     * When an record is deleted, log the event.
+     * When a record is deleted, log the event.
      *
      * @param array $args An array of parameters passed by the hook.
      * @return void
@@ -366,6 +367,100 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     {
         $record = $args['record'];
         $this->_texts[$record->record_type][$record->record_id][$record->element_id][HistoryLogChange::TYPE_DELETE][$record->id] = $record->text;
+    }
+
+    /**
+     * When an record is deleted, log the event.
+     *
+     * @param array $args An array of parameters passed by the hook.
+     * @return void
+     */
+    public function hookBeforeDeleteElement($args)
+    {
+        $record = $args['record'];
+
+        // Search all records with content of this element in order to log them.
+
+        //A direct sql is used because the process may be heavy
+        $user = current_user();
+        if (is_null($user)) {
+            throw new Exception(__('Could not retrieve user info before removing of element %d.', $record->id));
+        }
+
+        $db = $this->_db;
+
+        // To avoid a transaction with Zend, the date of Entries is set in the
+        // future, then the ids are recalled for Changes, and finally are reset
+        // to true time.
+        $added = $db->quote(date('Y-m-d H:i:s', strtotime('+1 year')));
+
+        $sql = "
+            INSERT INTO `{$db->HistoryLogEntry}` (`record_type`, `record_id`, `user_id`, `operation`, `added`)
+            SELECT 'Collection', `record_id`, $user->id, '" . HistoryLogEntry::OPERATION_UPDATE . "', $added
+            FROM `{$db->ElementText}`
+            WHERE `record_type` = 'Collection'
+                AND `element_id` = {$record->id}
+        ;";
+        $db->query($sql);
+
+        $sql = "
+            INSERT INTO `{$db->HistoryLogEntry}` (`record_type`, `record_id`, `part_of`, `user_id`, `operation`, `added`)
+            SELECT 'Item', `record_id`, `collection_id`, $user->id, '" . HistoryLogEntry::OPERATION_UPDATE . "', $added
+            FROM `{$db->ElementText}` AS `element_texts`
+                JOIN `{$db->Item}` AS `items`
+                    ON `element_texts`.`record_type` = 'Item'
+                        AND `items`.`id` = `element_texts`.`record_id`
+            WHERE `element_texts`.`record_type` = 'Item'
+                AND `element_texts`.`element_id` = {$record->id}
+        ;";
+        $db->query($sql);
+
+        $sql = "
+            INSERT INTO `{$db->HistoryLogEntry}` (`record_type`, `record_id`, `part_of`, `user_id`, `operation`, `added`)
+            SELECT 'Item', `record_id`, `item_id`, $user->id, '" . HistoryLogEntry::OPERATION_UPDATE . "', $added
+            FROM `{$db->ElementText}` AS `element_texts`
+                JOIN `{$db->File}` AS `files`
+                    ON `element_texts`.`record_type` = 'File'
+                        AND `files`.`id` = `element_texts`.`record_id`
+            WHERE `element_texts`.`record_type` = 'File'
+                AND `element_texts`.`element_id` = {$record->id}
+        ;";
+        $db->query($sql);
+
+        $sql = "
+            INSERT INTO `{$db->HistoryLogChange}` (`entry_id`, `element_id`, `type`, `text`)
+            SELECT  `entries`.`id`, {$record->id}, '" . HistoryLogChange::TYPE_DELETE . "', `element_texts`.`text`
+            FROM `{$db->HistoryLogEntry}` AS `entries`
+                JOIN `{$db->ElementText}` AS `element_texts`
+                    ON `element_texts`.`record_type` = `entries`.`record_type`
+                        AND `element_texts`.`record_id` = `entries`.`record_id`
+                        AND `entries`.`added` = $added
+                        AND `element_texts`.`element_id` = {$record->id}
+        ;";
+        $db->query($sql);
+
+        $sql = "
+            UPDATE `{$db->HistoryLogEntry}`
+            SET `added` = NOW()
+            WHERE `added` = $added
+        ;";
+        $db->query($sql);
+
+        // For integrity purposes, the deletion of element texts is done via one
+        // sql too.
+        $sql = "
+            DELETE FROM `{$db->ElementText}`
+            WHERE `element_id` = {$record->id}
+        ;";
+        $db->query($sql);
+
+        $flash = Zend_Controller_Action_HelperBroker::getStaticHelper('FlashMessenger');
+        $msg = __('The element "%s" (%d) in set "%s" has been removed.', $record->name, $record->id, $record->set_name);
+        _log('[HistoryLog] ' . $msg, Zend_Log::WARN);
+        $flash->addMessage($msg, 'success');
+        $msg = __('The Omeka base should be reindexed.');
+        _log('[HistoryLog] ' . $msg, Zend_Log::WARN);
+        $flash->addMessage($msg, 'success');
     }
 
     public function hookExport($args)
