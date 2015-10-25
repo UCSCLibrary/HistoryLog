@@ -41,6 +41,8 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
 
         parent::browseAction();
 
+        $this->view->params = $this->getAllParams();
+
         // Request for downloading.
         if ($isCsv) {
             // Prepare the download.

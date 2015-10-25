@@ -9,7 +9,7 @@ if (iterator_count(loop('HistoryLogEntry'))):
     $endOfLine = PHP_EOL;
     $separator = $enclosure . $delimiter . $enclosure;
 
-    if ($_REQUEST['csvheaders']):
+    if ($params['csvheaders']):
         $row = array();
         $row[] = __('Type');
         $row[] = __('Title');

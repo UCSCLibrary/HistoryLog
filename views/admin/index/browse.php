@@ -21,6 +21,41 @@ div.record-title {
             <a href="<?php echo html_escape(url('history-log/index/search')); ?>" class="add button small green"><?php echo __('Advanced Reports'); ?></a>
         </div>
         <?php echo common('quick-filters'); ?>
+        <div id="item-filters">
+            <ul>
+                <?php if (!empty($params['record_type'])): ?>
+                <li><?php echo __('Record Type: %s', $params['record_type']); ?></li>
+                <?php endif; ?>
+                <?php if (!empty($params['part_of'])): ?>
+                <li><?php echo __('Part of #%s', $params['part_of']); ?></li>
+                <?php endif; ?>
+                <?php if (!empty($params['since'])): ?>
+                <li><?php echo __('Since %s', $params['since']); ?></li>
+                <?php endif; ?>
+                <?php if (!empty($params['until'])): ?>
+                <li><?php echo __('Until %s', $params['until']); ?></li>
+                <?php endif; ?>
+                <?php if (!empty($params['user'])): ?>
+                <li><?php
+                    $user = get_record_by_id('User', $params['user']);
+                    echo $user
+                        ? __('User: %s', $user->username)
+                        : __('User: #%s', $params['user']);
+                ?></li>
+                <?php endif; ?>
+                <?php if (!empty($params['operation'])): ?>
+                <li><?php echo __('Operation: %s', ucfirst($params['operation'])); ?></li>
+                <?php endif; ?>
+                <?php if (!empty($params['element'])): ?>
+                <li><?php
+                    $element = get_record_by_id('Element', $params['element']);
+                    echo $element
+                        ? __('Element %s (%s)', $element->name, $element->set_name)
+                        : __('Element #%s', $params['element']);
+                ?></li>
+                <?php endif; ?>
+            </ul>
+    </div>
         <?php if (iterator_count(loop('HistoryLogEntry'))): ?>
         <div class="pagination"><?php echo $paginationLinks = pagination_links(); ?></div>
         <table id="history-log-entries" cellspacing="0" cellpadding="0">
@@ -43,7 +78,7 @@ div.record-title {
                 <?php
                 foreach (loop('HistoryLogEntry') as $logEntry):
                 ?>
-                <tr class="history-log-entry <?php if (++$key%2 == 1) echo 'odd'; else echo 'even'; ?>">
+                <tr class="history-log-entry <?php echo ++$key%2 == 1 ? 'odd' : 'even'; ?>">
                     <td><?php echo $logEntry->added; ?></td>
                     <td colspan="2">
                         <a href="<?php
