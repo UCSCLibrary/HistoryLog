@@ -184,7 +184,7 @@ class Table_HistoryLogChange extends Omeka_Db_Table
      * are multiple values for the same element.
      *
      * @todo Manage repetitive values.
-     * @todo Manage deletion of elements and records.
+     * @todo Manage deletion of records.
      * @todo Import/Export are not checked (element_id = "0").
      *
      * @param array $params
@@ -195,9 +195,11 @@ class Table_HistoryLogChange extends Omeka_Db_Table
      * @param boolean $withAllDates If true, the dates without value will be
      * added. For example, if there is no item added in August, the August value
      * will be added with a count of "0".
+     * @param boolean $withDeletedElements When all changes are returned,
+     * merge deletion of elements too.
      * @return array The number of records.
      */
-    public function countRecords($params, $lastChange = true, $withAllDates = true)
+    public function countRecords($params, $lastChange = true, $withAllDates = true, $withDeletedElements = true)
     {
         $normalizedPeriod = $this->_normalizePeriod($params);
         if (empty($normalizedPeriod)) {
@@ -212,7 +214,7 @@ class Table_HistoryLogChange extends Omeka_Db_Table
         // Strict / non strict requests use different queries.
         return $lastChange
             ? $this->_countRecordsLastChange($params, $columnsDate, $withAllDates)
-            : $this->_countRecordsAllChanges($params, $columnsDate, $withAllDates);
+            : $this->_countRecordsAllChanges($params, $columnsDate, $withAllDates, $withDeletedElements);
     }
 
     /**
@@ -247,7 +249,7 @@ class Table_HistoryLogChange extends Omeka_Db_Table
         $allChangesColumns['element_id'] = "$alias.element_id";
         $allChangesColumns['record_type'] = "$aliasEntry.record_type";
         $allChangesColumns['record_id'] = "$aliasEntry.record_id";
-        $allChangesColumns['text'] = "$alias.text";
+        $allChangesColumns['text'] = new Zend_Db_Expr("IF ($alias.type = '" . HistoryLogChange::TYPE_DELETE . "', NULL, $alias.text)");
         $allChangesColumns['added'] = "$aliasEntry.added";
         $selectAllChanges
             ->reset(Zend_Db_Select::COLUMNS)
@@ -292,6 +294,7 @@ class Table_HistoryLogChange extends Omeka_Db_Table
                     AND sub_2.record_id = sub_1.record_id
                     AND sub_2.added = sub_1.added'
             // Finalize the main query.
+            . ' WHERE text IS NOT NULL'
             . ' GROUP BY '
             . implode(', ', $countGroup);
 
@@ -314,9 +317,10 @@ class Table_HistoryLogChange extends Omeka_Db_Table
      * @param array $params
      * @param array $columnsDate
      * @param boolean $withAllDates
+     * @param boolean $withDeletedElements
      * @return array The result.
      */
-    protected function _countRecordsAllChanges($params, $columnsDate, $withAllDates)
+    protected function _countRecordsAllChanges($params, $columnsDate, $withAllDates, $withDeletedElements)
     {
         $alias = $this->getTableAlias();
         $select = $this->getSelectForCount();
@@ -324,13 +328,15 @@ class Table_HistoryLogChange extends Omeka_Db_Table
         $columns = array();
         $columns['element_id'] = "$alias.element_id";
         $columns += $columnsDate;
-        $columns['text'] = "$alias.text";
+        $columns['text'] = $withDeletedElements
+            ? "$alias.text"
+            : new Zend_Db_Expr("IF ($alias.type = '" . HistoryLogChange::TYPE_DELETE . "', NULL, $alias.text)");
         $columns['Count'] = "COUNT(`$alias`.`id`)";
 
         $group = array();
         $group[] = "$alias.element_id";
         $group = array_merge($group, array_keys($columnsDate));
-        $group[] = "$alias.text";
+        $group[] = 'text';
         $order = array();
         $order[] = "$alias.element_id";
         $order = array_merge($order, array_keys($columnsDate));
@@ -340,6 +346,10 @@ class Table_HistoryLogChange extends Omeka_Db_Table
             ->columns($columns)
             ->reset(Zend_Db_Select::GROUP)
             ->group($group);
+        if (!$withDeletedElements) {
+            $select
+                ->where('text IS NOT NULL');
+        }
 
         $this->applySearchFilters($select, $params);
 

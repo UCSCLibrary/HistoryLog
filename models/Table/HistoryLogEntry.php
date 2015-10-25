@@ -196,7 +196,7 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
      * are multiple values for the same element.
      *
      * @todo Manage repetitive values.
-     * @todo Manage deletion of elements and records.
+     * @todo Manage deletion of records.
      * @todo Import/Export are not checked (element_id = "0").
      *
      * @param array $params
@@ -207,12 +207,14 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
      * @param boolean $withAllDates If true, the dates without value will be
      * added. For example, if there is no item added in August, the August value
      * will be added with a count of "0".
+     * @param boolean $withDeletedElements When all changes are returned,
+     * merge deletion of elements too.
      * @return array The number of records.
      */
-    public function countRecords($params, $lastChange = true, $withAllDates = true)
+    public function countRecords($params, $lastChange = true, $withAllDates = true, $withDeletedElements = true)
     {
         return $this->_db->getTable('HistoryLogChange')
-            ->countRecords($params, $lastChange, $withAllDates);
+            ->countRecords($params, $lastChange, $withAllDates, $withDeletedElements);
     }
 
     /**
