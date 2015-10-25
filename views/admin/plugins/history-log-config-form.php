@@ -1,4 +1,4 @@
-<fieldset id="fieldset-history-log"><legend><?php echo __('Admin logs'); ?></legend>
+<fieldset id="fieldset-history-log-check"><legend><?php echo __('Admin logs'); ?></legend>
     <div class="field">
         <div class="two columns alpha">
             <a href="<?php echo html_escape(url('history-log/admin/check')); ?>" class="add button small green"><?php echo __('Missing logs'); ?></a>
@@ -14,6 +14,35 @@
                  */
                 ?>
             </p>
+        </div>
+    </div>
+</fieldset>
+<fieldset id="fieldset-history-log-display"><legend><?php echo __('Display History Logs'); ?></legend>
+    <div class="field">
+        <div class="two columns alpha">
+            <?php echo $this->formLabel('history_log_display', __('Pages where to display logs')); ?>
+        </div>
+        <div class="inputs five columns omega">
+            <div class="input-block">
+                <ul style="list-style-type: none;">
+                <?php
+                    $currentPages = json_decode(get_option('history_log_display')) ?: array();
+                    $pages = array(
+                        'collections/show',
+                        'items/show',
+                        'files/show',
+                        'items/browse',
+                    );
+                    foreach ($pages as $page) {
+                        echo '<li>';
+                        echo $this->formCheckbox('history_log_display[]', $page,
+                            array('checked' => in_array($page, $currentPages) ? 'checked' : ''));
+                        echo $page;
+                        echo '</li>';
+                    }
+                ?>
+                </ul>
+            </div>
         </div>
     </div>
 </fieldset>

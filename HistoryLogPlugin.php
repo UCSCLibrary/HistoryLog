@@ -54,6 +54,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      * @var array Options and their default values.
      */
     protected $_options = array(
+        'history_log_display' => '[]',
     );
 
     /**
@@ -124,6 +125,8 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         $db->query($sql);
         $sql = "INSERT INTO `{$db->prefix}numerals` (`i`) VALUES (0), (1), (2), (3), (4), (5), (6), (7), (8), (9);";
         $db->query($sql);
+
+        $this->_installOptions();
     }
 
     /**
@@ -153,6 +156,8 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         $db-> query($sql);
         $sql = "DROP TABLE IF EXISTS `{$db->prefix}numerals`";
         $db-> query($sql);
+
+        $this->_uninstallOptions();
     }
 
     /**
@@ -183,6 +188,11 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     {
         $post = $args['post'];
         foreach ($this->_options as $optionKey => $optionValue) {
+            if (in_array($optionKey, array(
+                    'history_log_display',
+                ))) {
+               $post[$optionKey] = json_encode($post[$optionKey]) ?: json_encode(array());
+            }
             if (isset($post[$optionKey])) {
                 set_option($optionKey, $post[$optionKey]);
             }
@@ -383,7 +393,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     {
         $args['record'] = $args['item'];
         unset($args['item']);
-        $this->_adminRecordShow($args);
+        $this->_adminRecordShow($args, 'items/show');
     }
 
     /**
@@ -396,7 +406,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     {
         $args['record'] = $args['collection'];
         unset($args['collection']);
-        $this->_adminRecordShow($args);
+        $this->_adminRecordShow($args, 'collections/show');
     }
 
     /**
@@ -409,7 +419,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     {
         $args['record'] = $args['file'];
         unset($args['file']);
-        $this->_adminRecordShow($args);
+        $this->_adminRecordShow($args, 'files/show');
     }
 
     /**
@@ -417,12 +427,18 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      * record's admin page.
      *
      * @param array $args An array of parameters passed by the hook.
+     * @param string $page The current type of the page
      * @return void
      */
-    protected  function _adminRecordShow($args)
+    protected  function _adminRecordShow($args, $page)
     {
         $record = $args['record'];
         $view = $args['view'];
+
+        $currentPages = json_decode(get_option('history_log_display')) ?: array();
+        if (!in_array($page, $currentPages)) {
+            return;
+        }
 
         try {
             echo $view->showlog($record, 5);
@@ -441,6 +457,11 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     {
         $record = $args['item'];
         $view = $args['view'];
+
+        $currentPages = json_decode(get_option('history_log_display')) ?: array();
+        if (!in_array('items/browse', $currentPages)) {
+            return;
+        }
 
         $logEntry = $this->_db->getTable('HistoryLogEntry')
             ->getLastEntryForRecord($record);
