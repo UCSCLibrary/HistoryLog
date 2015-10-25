@@ -10,6 +10,11 @@ each change is logged and each record can potentially be partially recovered at
 any time, except  files. An undo button allows to recover the deletion of a
 record.
 
+The logs are used by the plugin [Curator Monitor], that computes statistics and
+allows to follow selected fields with limited vocabularies, for instance a
+special element "Metadata Status" with values "Incomplete", "Complete",
+"Fact Checked", "Ready to Publish" and "Published".
+
 
 Installation
 ------------
@@ -86,7 +91,8 @@ Copyright
 
 
 [History Log]: https://github.com/UCSCLibrary/HistoryLog
-[Omeka]: http://omeka.org
+[Omeka]: https://omeka.org
+[Curator Monitor]: https://github.com/Daniel-KM/CuratorMonitor
 [plugin issues]: https://github.com/UCSCLibrary/HistoryLog/issues
 [GNU/GPL v3]: https://www.gnu.org/licenses/gpl-3.0.html
 [Daniel-KM]: https://github.com/Daniel-KM

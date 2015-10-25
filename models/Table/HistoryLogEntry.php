@@ -12,7 +12,7 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
      * @param array $params A set of parameters by which to filter the objects
      * that get returned from the database.
      * @param string $since Set the start date.
-     * @param string $until Set the end date (not included).
+     * @param string $until Set the end date, included.
      * @param User|integer $user Limit to a user.
      * @param integer $limit Number of objects to return per "page".
      * @param integer $page Page to retrieve.
@@ -185,6 +185,37 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
     }
 
     /**
+     * Wrapper to count all records with the specified text for an element
+     * during a period.
+     *
+     * This is useful for elements with a limited vocabulary and without
+     * repetitive values. For example, it allows to respond to a query such "How
+     * many records have the element "Metadata Status" set to "Published" by
+     * user "John Smith" during "September 2015"?" (example used by the plugin
+     * "Curator Monitor"). The interpretation of this count is harder when there
+     * are multiple values for the same element.
+     *
+     * @todo Manage repetitive values.
+     * @todo Manage deletion of elements and records.
+     * @todo Import/Export are not checked (element_id = "0").
+     *
+     * @param array $params
+     * @param boolean $lastChange If true, only the value at the end of the
+     * period will be compute. This allows to avoid cases where the text has
+     * been updated multiple times, for example "Complete" then "Ready to
+     * Publish" and finally "Incomplete" (from the plugin "Curator Monitor").
+     * @param boolean $withAllDates If true, the dates without value will be
+     * added. For example, if there is no item added in August, the August value
+     * will be added with a count of "0".
+     * @return array The number of records.
+     */
+    public function countRecords($params, $lastChange = true, $withAllDates = true)
+    {
+        return $this->_db->getTable('HistoryLogChange')
+            ->countRecords($params, $lastChange, $withAllDates);
+    }
+
+    /**
      * @param Omeka_Db_Select
      * @param array
      * @return void
@@ -342,9 +373,9 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
         // timezone, and format the date to be MySQL timestamp compatible.
         $date = new Zend_Date($dateSince, Zend_Date::ISO_8601);
         $date->setTimezone(date_default_timezone_get());
-        $date = $date->get('yyyy-MM-dd HH:mm:ss');
+        $date = $date->get('yyyy-MM-dd') . ' 00:00:00';
 
-        // Select all dates that are greater than the passed date.
+        // Select all dates that are greater or equal than the passed date.
         $alias = $this->getTableAlias();
         $select->where("`$alias`.`$dateField` >= ?", $date);
     }
@@ -352,10 +383,7 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
     /**
      * Apply a date until filter to the select object.
      *
-     * @internal This is a forgotten method.
-     * @internal Unlike ilterBySince(), the date is strictly lower in order to
-     * simplify queries and to avoid to manage queries with start/end of day,
-     * So use from Monday 00:00:00 to Monday+7 00:00:00 to get a week.
+     * @internal This is a forgotten method. The time is forced to 23:59:59.999999.
      *
      * @see self::applySearchFilters()
      * @param Omeka_Db_Select $select
@@ -373,11 +401,11 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
         // timezone, and format the date to be MySQL timestamp compatible.
         $date = new Zend_Date($dateUntil, Zend_Date::ISO_8601);
         $date->setTimezone(date_default_timezone_get());
-        $date = $date->get('yyyy-MM-dd HH:mm:ss');
+        $date = $date->get('yyyy-MM-dd') . ' 23:59:59.999999';
 
-        // Select all dates that are lower than the passed date.
+        // Select all dates that are lower or equal than the passed date.
         $alias = $this->getTableAlias();
-        $select->where("`$alias`.`$dateField` < ?", $date);
+        $select->where("`$alias`.`$dateField` <= ?", $date);
     }
 
     /**

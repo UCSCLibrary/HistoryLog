@@ -100,6 +100,16 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
             INDEX `entry_id_element_id` (`entry_id`, `element_id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;";
         $db->query($sql);
+
+        // Add a new table to simplify complex queries with calendar requests.
+        $sql = "
+            CREATE TABLE IF NOT EXISTS `{$db->prefix}numerals` (
+                `i` TINYINT unsigned NOT NULL,
+                PRIMARY KEY (`i`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;";
+        $db->query($sql);
+        $sql = "INSERT INTO `{$db->prefix}numerals` (`i`) VALUES (0), (1), (2), (3), (4), (5), (6), (7), (8), (9);";
+        $db->query($sql);
     }
 
     /**
@@ -126,6 +136,8 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         $sql = "DROP TABLE IF EXISTS `{$db->HistoryLogEntry}`";
         $db-> query($sql);
         $sql = "DROP TABLE IF EXISTS `{$db->HistoryLogChange}`";
+        $db-> query($sql);
+        $sql = "DROP TABLE IF EXISTS `{$db->prefix}numerals`";
         $db-> query($sql);
     }
 

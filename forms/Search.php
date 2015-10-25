@@ -136,7 +136,7 @@ class HistoryLog_Form_Search extends Omeka_Form
         // Date until.
         $this->addElement('text', 'until', array(
             'label' => __('End Date'),
-            'description' => __('The latest date, not included, from which to retrieve logs.'),
+            'description' => __('The latest date, included, from which to retrieve logs.'),
             'value' => 'YYYY-MM-DD',
             'order' => 8,
             'style' => 'max-width: 120px;',
