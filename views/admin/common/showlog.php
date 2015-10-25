@@ -20,7 +20,15 @@ $subtitle = __('Last Changes for %s #%d', $record_type, $record_id);
                 <tr>
                     <td><?php echo $logEntry->added; ?></td>
                     <td><?php echo $logEntry->displayUser(); ?></td>
-                    <td><?php echo $logEntry->displayOperation(); ?></td>
+                    <td><?php echo $logEntry->displayOperation(); ?>
+                    <?php if ($logEntry->isEntryToUndelete()):
+                        $undeleteUrl = url(array(
+                                'type' => Inflector::tableize($logEntry->record_type),
+                                'id' => $logEntry->record_id,
+                            ), 'history_log_undelete'); ?>
+                        <div><a href="<?php echo html_escape($undeleteUrl); ?>" class="history-log-process button red"><?php echo html_escape(__('Undo')); ?></a></div>
+                    <?php endif;
+                    ?></td>
                     <td><?php echo nl2br($logEntry->displayChanges(), true); ?></td>
                 </tr>
                 <?php

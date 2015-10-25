@@ -35,8 +35,9 @@ class HistoryLogChange extends Omeka_Record_AbstractRecord
     public $type;
 
     /**
-     * @var string The new content of the element after the update. If there is
-     * no element, the  value depends on the operation (source, service...).
+     * @var string The new content of the element after the update, or the old
+     * one after a deletion. If there is no element, the value depends on the
+     * operation (source, service...).
      */
     public $text;
 

@@ -60,7 +60,7 @@ class HistoryLog_Table_HistoryLogEntryTest extends HistoryLog_Test_AppTestCase
         $items[1]->delete();
         $this->assertEquals(10, total_records('Item'));
         $this->assertEquals(11, total_records('HistoryLogEntry'));
-        $this->assertEquals(43, total_records('HistoryLogChange'));
+        $this->assertEquals(47, total_records('HistoryLogChange'));
 
         $elementTexts = array();
         $elementTexts['Dublin Core']['Title'][] = array('text' => 'title updated', 'html' => false);
@@ -69,7 +69,7 @@ class HistoryLog_Table_HistoryLogEntryTest extends HistoryLog_Test_AppTestCase
         $items[2]->save();
         $this->assertEquals(10, total_records('Item'));
         $this->assertEquals(12, total_records('HistoryLogEntry'));
-        $this->assertEquals(45, total_records('HistoryLogChange'));
+        $this->assertEquals(49, total_records('HistoryLogChange'));
 
         $elementTexts = array();
         $elementTexts['Dublin Core']['Creator'][] = array('text' => 'creator ter #8', 'html' => false);
@@ -77,7 +77,7 @@ class HistoryLog_Table_HistoryLogEntryTest extends HistoryLog_Test_AppTestCase
         $items[8]->save();
         $this->assertEquals(10, total_records('Item'));
         $this->assertEquals(13, total_records('HistoryLogEntry'));
-        $this->assertEquals(46, total_records('HistoryLogChange'));
+        $this->assertEquals(50, total_records('HistoryLogChange'));
 
         $elementTexts = array();
         $elementTexts['Dublin Core']['Creator'][] = array('text' => 'creator ter #9', 'html' => false);
@@ -85,7 +85,7 @@ class HistoryLog_Table_HistoryLogEntryTest extends HistoryLog_Test_AppTestCase
         $items[9]->save();
         $this->assertEquals(10, total_records('Item'));
         $this->assertEquals(14, total_records('HistoryLogEntry'));
-        $this->assertEquals(47, total_records('HistoryLogChange'));
+        $this->assertEquals(51, total_records('HistoryLogChange'));
     }
 
     public function testAdvancedUpdate()

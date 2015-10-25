@@ -5,8 +5,10 @@ History Log (plugin for Omeka)
 and export of Omeka items, collection and files and allows administrators to
 recall this information later.
 
-This is not a replacement for your regular backups of the database, even if
-each change is logged.
+This is not a replacement for your regular backups of the database, even if each
+each change is logged and each record can potentially be partially recovered at
+any time, except  files. An undo button allows to recover the deletion of a
+record.
 
 
 Installation
@@ -20,10 +22,23 @@ Then install it like any other Omeka plugin.
 Notes
 -----
 
-- Logging is done via standard hooks. If a plugin bypasses the standard methods,
-some logs may be missing.
-- Some standard methods don't use hooks, for example `deleteElementTextsByElementId()`.
-They should not be used internally. Omeka uses them, but fires hooks anyway.
+* Logging
+
+  - Logging is done via standard hooks. If a plugin bypasses the standard
+  methods, some logs may be missing.
+  - Some standard methods don't use hooks, for example `deleteElementTextsByElementId()`.
+  They should not be used internally. Omeka uses them, but fires hooks anyway.
+
+* Recovering of a deleted record
+
+  - Records are recreated with the same id.
+  - It's recommended to undelete collections before their items.
+  - Files can't be recovered, but their metadata are logged, so they can be
+  manually recreated as long as files are backuped.
+  - Non standard metadata are not saved and can't be recreated: status public or
+  featured, item type, tags, flag "html" of element texts, etc. For the owner,
+  the user who deleted the record is used.
+  - Check Omeka logs after a successful rebuild to see possible issues.
 
 
 Warning

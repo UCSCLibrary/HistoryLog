@@ -162,14 +162,12 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
         }
 
         // Get the record object if it is an array.
-        if (is_array($record)) {
-            $record = $this->getRecord();
-            if (empty($record)) {
-                return false;
-            }
+        $record = $this->getRecord($record);
+        if (empty($record)) {
+            return false;
         }
 
-        if (!$this->_isLoggable(get_class($record), $record->id)) {
+        if (!$this->isLoggable(get_class($record), $record->id)) {
             return false;
         }
 
@@ -210,7 +208,8 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
                 }
                 break;
             case HistoryLogEntry::OPERATION_DELETE:
-                // No change.
+                $changes = $this->_findElementsForDeletedRecord($record);
+                $this->_setChangesToLog($changes);
                 break;
             case HistoryLogEntry::OPERATION_IMPORT:
             case HistoryLogEntry::OPERATION_EXPORT:
@@ -219,6 +218,90 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
         }
 
         return true;
+    }
+
+    /**
+     * Undelete the record.
+     *
+     * @return Record|boolean The record if the undeletion succeed, else false.
+     */
+    public function undeleteRecord()
+    {
+        // Get the last entry for "delete" in case the current one is not the
+        // last.one.
+        $logEntry = $this->isRecordUndeletable();
+        if (empty($logEntry)) {
+            return false;
+        }
+
+        $metadata = array();
+        $elementTexts = array();
+
+        // Get the oldest entry of the record to fill the "added" date.
+        $added = null;
+        $logEntryCreate = $this->_db->getTable('HistoryLogEntry')
+            ->getFirstEntryForRecord(array($logEntry->record_type, $logEntry->record_id), HistoryLogEntry::OPERATION_CREATE);
+        if ($logEntryCreate) {
+            $added = $logEntryCreate->added;
+        }
+
+        $currentUser = current_user();
+
+        $changes = $logEntry->getChanges();
+        foreach ($changes as $change) {
+            $element = $change->getElement();
+            if (empty($element)) {
+                _log(__("Element #%d doesn't exist any more and can't be refilled.",
+                    $change->element_id), Zend_Log::NOTICE);
+                continue;
+            }
+            $elementSet = $element->getElementSet();
+            if (empty($element)) {
+                _log(__('Element Set #%d for element #%d does not exist.',
+                    $element->$element_set_id, $change->element_id), Zend_Log::NOTICE);
+                continue;
+            }
+            $elementTexts[$elementSet->name][$element->name][] = array(
+                'text' => $change->text,
+                'html' => false,
+            );
+        }
+
+        switch ($this->record_type) {
+            case 'Item':
+                $record = new Item();
+                $record->id = $logEntry->record_id;
+                $record->user = $logEntry->user_id ?: $currentUser->id;
+                $record->added = $added;
+                if ($logEntry->part_of) {
+                    // Check if the collection still exists.
+                    $collection = get_record_by_id('Collection', $logEntry->part_of);
+                    if ($collection) {
+                        $record->collection_id = $collection->id;
+                    }
+                }
+                $record = update_item($record, $metadata, $elementTexts);
+                break;
+
+            case 'Collection':
+                $item = new Collection();
+                $record->id = $logEntry->record_id;
+                $record->user = $logEntry->user_id ?: $currentUser->id;
+                $record->added = $added;
+                $record = update_collection($record, $metadata, $elementTexts);
+                break;
+
+            default:
+                return false;
+        }
+
+        if ($record) {
+            _log(__('The %s #%d has been recreated (metadata only).',
+                $this->record_type, $this->record_id), Zend_Log::NOTICE);
+            return $record;
+        }
+
+        return false;
     }
 
     /**
@@ -335,15 +418,55 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     }
 
     /**
-     * Get the record object. It may be deleted.
+     * Get the current record object or the specified one from an array.
      *
-     * @return Record|null Therecord, else null if deleted.
+     * @internal The record of an entry may be deleted. No check is done.
+     *
+     * @param array $record The record with record type and record id.
+     * @return Record|null The record, else null if deleted.
      */
-    public function getRecord()
+    public function getRecord($record = null)
     {
+        if (is_null($record)) {
+            $recordType = $this->record_type;
+            $recordId = $this->record_id;
+        }
+        elseif (is_object($record)) {
+            return $record;
+        }
+        elseif (is_array($record)) {
+            // Normal array.
+            if (isset($record['record_type']) && isset($record['record_id'])) {
+                $recordType = $record['record_type'];
+                $recordId = $record['record_id'];
+            }
+            elseif (isset($record['type']) && isset($record['id'])) {
+                $recordType = $record['type'];
+                $recordId = $record['id'];
+            }
+            // One row in the array.
+            elseif (count($record) == 1) {
+                $recordId = reset($record);
+                $recordType = key($record);
+            }
+            // Two rows in the array.
+            elseif (count($record) == 2) {
+                $recordType = array_shift($record);
+                $recordId = array_shift($record);
+            }
+            // Record not determinable.
+            else {
+                return;
+            }
+        }
+        // No record.
+        else {
+            return;
+        }
+
         // Manage the case where record type has been removed.
-        if (class_exists($this->record_type)) {
-            return $this->getTable($this->record_type)->find($this->record_id);
+        if (class_exists($recordType)) {
+            return $this->getTable($recordType)->find($recordId);
         }
     }
 
@@ -387,6 +510,87 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
         );
         return $this->getTable('HistoryLogEntry')
             ->getElementIdsForRecord($record);
+    }
+
+    /**
+     * Check if the current record or any other one is loggable (item,
+     * collection, file).
+     *
+     * @param string $recordType
+     * @param integer $recordId
+     * @return boolean
+     */
+    public function isLoggable($recordType = null, $recordId = null)
+    {
+        if (is_null($recordType)) {
+            $recordType = $this->record_type;
+        }
+        if (is_null($recordId)) {
+            $recordId = $this->record_id;
+        }
+        $recordId = (integer) $recordId;
+        return !empty($recordId)
+            && in_array($recordType, $this->_validRecordTypes);
+    }
+
+    /**
+     * Check if the record is undeletable with this log entry.
+     *
+     * @return boolean True if this is the entry to undelete the record.
+     */
+    public function isEntryToUndelete()
+    {
+        if (!in_array($this->record_type, array('Item', 'Collection'))) {
+            return false;
+        }
+
+        if ($this->operation != HistoryLogEntry::OPERATION_DELETE) {
+            return false;
+        }
+
+        $record = $this->getRecord();
+        if ($record) {
+            return false;
+        }
+
+        // Check if the last operation is a deletion.
+        $logEntry = $this->_db->getTable('HistoryLogEntry')
+            ->getLastEntryForRecord(array(
+                    'record_type' => $this->record_type,
+                    'record_id' => $this->record_id,
+                ), HistoryLogEntry::OPERATION_DELETE);
+
+        if (empty($logEntry)) {
+            return false;
+        }
+
+        return $logEntry->id == $this->id;
+    }
+
+    /**
+     * Check if the record is undeletable and return the log entry.
+     *
+     * @return HistoryLogEntry|null The last entry for undelete, else null.
+     */
+    public function isRecordUndeletable()
+    {
+        if (!in_array($this->record_type, array('Item', 'Collection'))) {
+            return false;
+        }
+
+        $record = $this->getRecord();
+        if ($record) {
+            return false;
+        }
+
+        // Check if the last operation is a deletion.
+        $logEntry = $this->_db->getTable('HistoryLogEntry')
+            ->getLastEntryForRecord(array(
+                    'record_type' => $this->record_type,
+                    'record_id' => $this->record_id,
+                ), HistoryLogEntry::OPERATION_DELETE);
+
+        return $logEntry;
     }
 
     /**
@@ -577,6 +781,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
             if (isset($newElements[$elementId])) {
                 $newTexts = $newElements[$elementId];
                 foreach ($oldTexts as $key => $oldText) {
+                    // The value has been modified, so the new text is logged.
                     if (isset($newTexts[$key])) {
                         if ($newTexts[$key] !== $oldText) {
                             $updatedElements[$elementId][] = array(
@@ -585,8 +790,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
                         }
                         // Else no change.
                     }
-                    // The value has been deleted. The text is kept ot distinct
-                    // the full remove of the element.
+                    // The value has been deleted. The old text is logged.
                     else {
                         $updatedElements[$elementId][] = array(
                             HistoryLogChange::TYPE_DELETE => $oldText,
@@ -602,12 +806,15 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
                     }
                 }
             }
-            // Deleted all values (single or multiple) of one field: log it one
-            // time only.
+            // All values of an element have been deleted. They are logged all
+            // to keep a track of a deleted item and to simplify the revert
+            // process.
             else {
-                $updatedElements[$elementId][] = array(
-                    HistoryLogChange::TYPE_DELETE => '',
-                );
+                foreach ($oldTexts as $key => $oldText) {
+                    $updatedElements[$elementId][] = array(
+                        HistoryLogChange::TYPE_DELETE => $oldText,
+                    );
+                }
             }
         }
 
@@ -624,6 +831,43 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
         }
 
         return $updatedElements;
+    }
+
+    /**
+     * Helper to find out all elements of a deleted record.
+     *
+     * Notes:
+     * - Each text of repetitive field is returned.
+     * - Checks are done according to the natural order.
+     *
+     * @param Record $record Record must be an object.
+     * @return array|null Associative array of element ids and array of texts of
+     * the deleted record.
+     */
+    protected function _findElementsForDeletedRecord($record)
+    {
+        // Get the old list of elements.
+        $currentElements = array();
+
+        $elementTexts = get_records(
+            'ElementText',
+            array(
+                'record_type' => get_class($record),
+                'record_id' => $record->id),
+            0);
+
+        if (is_null($elementTexts)) {
+            // TODO Throw an error? Normally, never here.
+            return;
+        }
+
+        foreach ($elementTexts as $elementText) {
+            $currentElements[$elementText->element_id][] = array(
+                HistoryLogChange::TYPE_DELETE => $elementText['text'],
+            );
+        }
+
+        return $currentElements;
     }
 
     /**
@@ -871,33 +1115,13 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
         if (empty($this->record_id)) {
             $this->addError('record_id', __('Record cannot be empty.'));
         }
-        if (!$this->_isLoggable()) {
+        if (!$this->isLoggable()) {
             $this->addError('record_type', __('Type of record "%s" is not correct.', $this->record_type));
         }
         if (!$this->_isOperationValid()) {
             $this->addError('operation', __('Operation "%s" is not correct.', $this->operation));
         }
     }
-
-    /**
-     * Check if the record is loggable (item, collection, file).
-     *
-     * @param string $recordType
-     * @param integer $recordId
-     * @return boolean
-     */
-    protected function _isLoggable($recordType = null, $recordId = null)
-    {
-        if (is_null($recordType)) {
-            $recordType = $this->record_type;
-        }
-        if (is_null($recordId)) {
-            $recordId = $this->record_id;
-        }
-        return !empty($recordId)
-            && in_array($recordType, $this->_validRecordTypes);
-    }
-
     /**
      * Check if the operation is valid.
      *

@@ -63,15 +63,42 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
     }
 
     /**
-     * Return last entry for a record.
+     * Return first entry for a record.
      *
      * @param Object|array $record
-     * @return HistoryLogEntry|null The last entry if any.
+     * @param string $operation
+     * @return HistoryLogEntry|null The first entry if any.
      */
-    public function getLastEntryForRecord($record)
+    public function getFirstEntryForRecord($record, $operation = null)
     {
         $params = array();
         $params['record'] = $record;
+        if ($operation) {
+            $params['operation'] = $operation;
+        }
+        $params['sort_field'] = 'added';
+        $params['sort_dir'] = 'a';
+
+        $entries = $this->findBy($params, 1);
+        if ($entries) {
+            return reset($entries);
+        }
+    }
+
+    /**
+     * Return last entry for a record.
+     *
+     * @param Object|array $record
+     * @param string $operation
+     * @return HistoryLogEntry|null The last entry if any.
+     */
+    public function getLastEntryForRecord($record, $operation = null)
+    {
+        $params = array();
+        $params['record'] = $record;
+        if ($operation) {
+            $params['operation'] = $operation;
+        }
         $params['sort_field'] = 'added';
         $params['sort_dir'] = 'd';
 

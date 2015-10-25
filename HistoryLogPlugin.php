@@ -30,7 +30,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         'define_routes',
         'before_save_record',
         'after_save_record',
-        'after_delete_record',
+        'before_delete_record',
         'export',
         'admin_items_show',
         'admin_collections_show',
@@ -164,6 +164,20 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
                     'type' =>'items|collections|files',
                     'id' => '\d+',
         )));
+
+        $args['router']->addRoute(
+            'history_log_undelete',
+            new Zend_Controller_Router_Route(
+                ':type/undelete/:id',
+                array(
+                    'module' => 'history-log',
+                    'controller' => 'log',
+                    'action' => 'undelete',
+                ),
+                array(
+                    'type' =>'items|collections|files',
+                    'id' => '\d+',
+        )));
     }
 
     /**
@@ -231,7 +245,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      * @param array $args An array of parameters passed by the hook.
      * @return void
      */
-    public function hookAfterDeleteRecord($args)
+    public function hookBeforeDeleteRecord($args)
     {
         $record = $args['record'];
         if (!$this->_isLoggable($record)) {
