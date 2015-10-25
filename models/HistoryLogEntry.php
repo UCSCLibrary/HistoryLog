@@ -221,6 +221,171 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     }
 
     /**
+     * Rebuild an log entry "create" or "delete" for a record, if missing.
+     *
+     * @param array $record
+     * @param string $operation
+     * @return boolean Success or not. False may mean it's useless.
+     */
+    public function rebuildEntry($record, $operation)
+    {
+        switch ($this->operation) {
+            case HistoryLogEntry::OPERATION_CREATE:
+                return $this->_rebuildFirstEntry($record);
+            case HistoryLogEntry::OPERATION_UPDATE:
+                return $this->_rebuildUpdateEntry($record);
+            case HistoryLogEntry::OPERATION_DELETE:
+                return $this->_rebuildLastEntry($record);
+        }
+        return false;
+    }
+
+    /**
+     * Rebuild the first entry ("create") for a record, if missing.
+     *
+     * @param array $record
+     * @return boolean Success or not.
+     */
+    protected function _rebuildFirstEntry($record)
+    {
+        // Check if the entry need to be rebuild. The record may be deleted.
+        $record = $this->getRecord($record);
+        if (empty($record)) {
+            return false;
+        }
+
+        // Check if this entry need to be recreated.
+        $entry = $this->_db->getTable('HistoryLogEntry')
+            ->getFirstEntryForRecord($record, HistoryLogEntry::OPERATION_CREATE);
+        if ($entry) {
+            return false;
+        }
+
+        // Normalize the current element texts.
+        $elementTexts = $record->getAllElementTexts();
+        $texts = array();
+        foreach ($elementTexts as $elementText) {
+            $texts[$elementText->element_id][] = $elementText->text;
+        }
+
+        // Get all entries, from the last.
+        $entries = $this->_db->getTable('HistoryLogEntry')
+            ->findBy(array(
+                'record' => $record,
+                // Only the update operation is useful.
+                'operation' => HistoryLogEntry::OPERATION_UPDATE,
+                Omeka_Db_Table::SORT_PARAM => 'added',
+                Omeka_Db_Table::SORT_DIR_PARAM => 'd',
+            ));
+
+        // Revert each change of each entry.
+        foreach ($entries as $entry) {
+            // A count of each update by element is needed, because the update
+            // operation is done in the natural order.
+            $textsUpdates = array();
+
+            $changes = $entry->getChanges();
+            foreach ($changes as $change) {
+                switch ($change->type) {
+                    case HistoryLogChange::TYPE_CREATE:
+                        if (isset($texts[$change->element_id])) {
+                            $key = array_search($change->text, $texts[$change->element_id]);
+                            if ($key !== false) {
+                                unset($texts[$change->element_id][$key]);
+                            }
+                        }
+                        break;
+
+                    case HistoryLogChange::TYPE_UPDATE:
+                        // TODO Get the first update of the field, that will be
+                        // the oldest known value, even if not the first one.
+                        break;
+
+                    case HistoryLogChange::TYPE_DELETE:
+                        if (strlen($change->text)) {
+                            $texts[$change->element_id][] = $change->text;
+                        }
+                        break;
+                }
+            }
+        }
+
+        // Set the texts.
+        $this->_setChangesToLog($texts);
+
+        // Finalize the entry.
+        $this->setRecordType(get_class($record));
+        $this->setRecordId($record->id);
+        switch (get_class($record)) {
+            case 'Item':
+                $this->setPartOf($record->collection_id);
+                break;
+            case 'File':
+                $this->setPartOf($record->item_id);
+                break;
+            case 'Collection':
+            default:
+                $this->setPartOf(0);
+        }
+        $user = current_user();
+        $this->setUserId($user->id);
+        $this->operaiton = HistoryLogEntry::OPERATION_CREATE;
+        $this->added = $record->added;
+
+        // TODO Remove the return "false" used for testing purpose.
+        return false;
+    }
+
+    /**
+     * Rebuild a full entry ("update") for a record, if "create" is missing.
+     *
+     * This doesn't create the first entry, but a entry with all current values
+     * of the record.
+     *
+     * @todo Create the full entry for current records without the log "create".
+     *
+     * @param array $record
+     * @return boolean Success or not.
+     */
+    protected function _rebuildUpdateEntry($record)
+    {
+       // TODO Remove the return "false" used for testing purpose.
+        return false;
+     }
+
+    /**
+     * Rebuild the last entry ("delete") for a deleted record, if missing.
+     *
+     * @todo Create last entry for deleted records without the log "delete".
+     *
+     * @param array $record
+     * @return boolean Success or not.
+     */
+    protected function _rebuildLastEntry($record)
+    {
+        // Check if the last entry is missing: if there are logs, but the last
+        // one is not a deletion one. The record should be deleted.
+        $record = $this->getRecord($record);
+        if (!empty($record)) {
+            return false;
+        }
+
+        // Check if this entry need to be recreated.
+        $entry = $this->_db->getTable('HistoryLogEntry')
+            ->getFirstEntryForRecord($record, HistoryLogEntry::OPERATION_DELETE);
+        if ($entry) {
+            return false;
+        }
+
+        // Get all changes from the first.
+
+        // Revert each change from the first.
+
+        // TODO Remove the return "false" used for testing purpose.
+        return false;
+    }
+
+    /**
      * Undelete the record.
      *
      * @return Record|boolean The record if the undeletion succeed, else false.

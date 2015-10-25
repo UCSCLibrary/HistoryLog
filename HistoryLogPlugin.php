@@ -26,6 +26,8 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         'upgrade',
         'uninstall',
         'uninstall_message',
+        'config_form',
+        'config',
         'define_acl',
         'define_routes',
         'before_save_record',
@@ -44,6 +46,12 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     protected $_filters = array(
         'admin_navigation_main',
+    );
+
+    /**
+     * @var array Options and their default values.
+     */
+    protected $_options = array(
     );
 
     /**
@@ -127,6 +135,32 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     public function hookUninstallMessage()
     {
         echo __('%sWarning%s: All the history log entries will be deleted.', '<strong>', '</strong>');
+    }
+
+    /**
+     * Shows plugin configuration page.
+     */
+    public function hookConfigForm($args)
+    {
+        $view = get_view();
+        echo $view->partial(
+            'plugins/history-log-config-form.php'
+        );
+    }
+
+    /**
+     * Handle a submitted config form.
+     *
+     * @param array Options set in the config form.
+     */
+    public function hookConfig($args)
+    {
+        $post = $args['post'];
+        foreach ($this->_options as $optionKey => $optionValue) {
+            if (isset($post[$optionKey])) {
+                set_option($optionKey, $post[$optionKey]);
+            }
+        }
     }
 
     /**

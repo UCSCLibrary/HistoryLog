@@ -24,6 +24,8 @@ Notes
 
 * Logging
 
+  - If the plugin has not been installed with Omeka, older records will not have
+  log entries and their stats will be partial.
   - Logging is done via standard hooks. If a plugin bypasses the standard
   methods, some logs may be missing.
   - Some standard methods don't use hooks, for example `deleteElementTextsByElementId()`.
