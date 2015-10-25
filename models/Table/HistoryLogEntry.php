@@ -215,7 +215,6 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
     /**
      * Filter entry by record.
      *
-     * @see HistoryLogChange::filterByRecord()
      * @see self::applySearchFilters()
      * @param Omeka_Db_Select $select
      * @param Record|array $record

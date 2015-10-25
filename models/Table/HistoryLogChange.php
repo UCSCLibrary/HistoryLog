@@ -181,18 +181,46 @@ class Table_HistoryLogChange extends Omeka_Db_Table
     public function applySearchFilters($select, $params)
     {
         $alias = $this->getTableAlias();
+        $tableEntry = $this->_db->getTable('HistoryLogEntry');
         $boolean = new Omeka_Filter_Boolean;
         $genericParams = array();
         foreach ($params as $key => $value) {
             if ($value === null || (is_string($value) && trim($value) == '')) {
                 continue;
             }
+            // Filters for Entry can be used directly, because the getSelect()
+            // initializes it directly.
             switch ($key) {
                 case 'entry':
                     $this->filterByEntry($select, $value);
                     break;
                 case 'record':
-                    $this->filterByRecord($select, $value);
+                    $tableEntry->filterByRecord($select, $value);
+                    break;
+                case 'collection':
+                    if ($params['record_type'] == 'Item') {
+                        $aliasEntry = $tableEntry->getTableAlias();
+                        $select->where("`$aliasEntry`.`part_of` = ?", $value);
+                    }
+                    break;
+                case 'item':
+                    if ($params['record_type'] == 'File') {
+                       $tableEntry->filterColumnByRange($select, $value, 'part_of');
+                    }
+                    break;
+                case 'user':
+                    $userId = (integer) (is_object($value) ? $value->id : $value);
+                    $tableEntry->filterByUser($select, $userId, 'user_id');
+                    break;
+                case 'since':
+                    if (strtolower($value) != 'yyyy-mm-dd') {
+                        $tableEntry->filterBySince($select, $value, 'added');
+                    }
+                    break;
+                case 'until':
+                    if (strtolower($value) != 'yyyy-mm-dd') {
+                        $tableEntry->filterByUntil($select, $value, 'added');
+                    }
                     break;
                 case 'element':
                     $this->filterByChangedElement($select, $value);
@@ -241,39 +269,7 @@ class Table_HistoryLogChange extends Omeka_Db_Table
     }
 
     /**
-     * Filter entry by record.
-     *
-     * @see HistoryLogEntry::filterByRecord()
-     * @see self::applySearchFilters()
-     * @param Omeka_Db_Select $select
-     * @param Record|array $record
-     */
-    public function filterByRecord($select, $record)
-    {
-        $recordType = '';
-        // Manage the case where the record is a new one.
-        $recordId = 0;
-        if (is_array($record)) {
-            if (!empty($record['record_type']) && !empty($record['record_id'])) {
-                $recordType = Inflector::classify($record['record_type']);
-                $recordId = (integer) $record['record_id'];
-            }
-        }
-        // Convert the record.
-        elseif ($record) {
-            $recordType = get_class($record);
-            $recordId = $record->id ?: 0;
-        }
-
-        $tableEntry = $this->_db->getTable('HistoryLogEntry');
-        $aliasEntry = $tableEntry->getTableAlias();
-
-        $select->where("`$aliasEntry`.`record_type` = ?", $recordType);
-        $select->where("`$aliasEntry`.`record_id` = ?", $recordId);
-    }
-
-    /**
-     * Apply a element filter to the select object.
+     * Apply an element filter to the select object.
      *
      * @see HistoryLogEntry::filterByChangedElement()
      * @see self::applySearchFilters()
