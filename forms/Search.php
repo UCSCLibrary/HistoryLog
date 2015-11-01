@@ -28,12 +28,9 @@ class HistoryLog_Form_Search extends Omeka_Form
             $userOptions = $this->_getUserOptions();
             $operationOptions = $this->_getoperationOptions();
             $elementOptions = $this->_getElementOptions();
+            $exportOptions = $this->_getexportOptions();
         } catch (Exception $e) {
             throw $e;
-        }
-
-        if (version_compare(OMEKA_VERSION, '2.2.1') >= 0) {
-            $this->addElement('hash', 'history_log_token');
         }
 
         // Record type.
@@ -152,32 +149,35 @@ class HistoryLog_Form_Search extends Omeka_Form
             )
         ));
 
-        $this->addElement('checkbox', 'csv-download', array(
-            'label' => __('Download full log as CSV file'),
-            'description' => __('The values will be separated by a tabulation.'),
+        // Output.
+        $this->addElement('radio', 'export', array(
+            'label' => __('Output'),
+            'value' => '',
             'order' => 9,
-            'style' => 'max-width: 120px;',
+            'validators' => array(
+                'alnum',
+            ),
             'required' => false,
+            'multiOptions' => $exportOptions,
         ));
 
-        $this->addElement('checkbox', 'csv-headers', array(
-            'label' => __('Include headers in csv files'),
+        $this->addElement('checkbox', 'export-headers', array(
+            'label' => __('Include headers'),
+            'value' => true,
             'order' => 10,
-            'style' => 'max-width: 120px;',
             'required' => false,
         ));
 
-        // Submit.
+        if (version_compare(OMEKA_VERSION, '2.2.1') >= 0) {
+            $this->addElement('hash', 'history_log_token');
+        }
+
+        // Button for submit.
         $this->addElement('submit', 'submit-search', array(
             'label' => __('Report'),
         ));
-        // TODO Add decorator as in "items/search-form.php" for scroll.
 
-        /*
-        $this->addElement('submit', 'submit-download', array(
-            'label' => __('Download Log'),
-        ));
-        */
+        // TODO Add decorator as in "items/search-form.php" for scroll.
 
         // Display Groups.
         $this->addDisplayGroup(array(
@@ -189,8 +189,8 @@ class HistoryLog_Form_Search extends Omeka_Form
             'element',
             'since',
             'until',
-            'csv-download',
-            'csv-headers'
+            'export',
+            'export-headers',
         ), 'fields');
 
         $this->addDisplayGroup(array(
@@ -287,5 +287,21 @@ class HistoryLog_Form_Search extends Omeka_Form
             'record_types' => array('Item', 'All'),
             'sort' => 'orderBySet')
         );
+    }
+
+    /**
+     * Retrieve possible exports as a selectable option list.
+     *
+     * @return array $options An associative array of the format.
+     */
+    protected function _getexportOptions()
+    {
+        $options = array(
+            '' => __('Normal display'),
+            'csv' => __('csv (with tabulations)'),
+            'fods' => __('fods (Flat OpenDocument Spreadsheet)'),
+        );
+
+        return $options;
     }
 }

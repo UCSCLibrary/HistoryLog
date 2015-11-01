@@ -1357,6 +1357,49 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     }
 
     /**
+     * Retrieve the "part of" type and id, if any, as raw text or url to logs.
+     *
+     * @param boolean $asUrl
+     * @return string The part of, if any.
+     */
+    public function displayPartOf($asUrl = false)
+    {
+        $partOf = $this->getPartOfRecord();
+        if (empty($partOf)) {
+            return;
+        }
+
+        switch ($this->record_type) {
+            case 'Item':
+                $title = is_array($partOf)
+                    ? __('Collection %d [deleted]', $this->part_of)
+                    : __('Collection %d', $this->part_of);
+                return $asUrl
+                    ? sprintf('<a href="%s">%s</a>',
+                        url(array(
+                                'type' => 'collections',
+                                'id' => $this->part_of,
+                            ), 'history_log_record_log'),
+                        $title)
+                    : $title;
+
+            case 'File':
+                $title = empty($partOf)
+                    ? __('Item %d [deleted]', $this->part_of)
+                    : __('Item %d', $this->part_of);
+                return $asUrl
+                    ? sprintf('<a href="%s">%s</a>',
+                        url(array(
+                                'type' => 'items',
+                                'id' => $this->part_of,
+                            ), 'history_log_record_log'),
+                        $title)
+                    : $title;
+                break;
+        }
+    }
+
+    /**
      * Retrieve displayable name of an operation.
      *
      * @return string User displayable operation name.
@@ -1512,16 +1555,16 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     public function displayCurrentTitle()
     {
         if ($this->operation == HistoryLogEntry::OPERATION_DELETE) {
-            return __('Deleted record');
+            return __('[Deleted record]');
         }
 
         $record = $this->getRecord();
         if (empty($record)) {
-            return __('Deleted record');
+            return __('[Deleted record]');
         }
 
-        $titles = $record->getElementTexts('Dublin Core', 'Title');
-        return isset($titles[0]) ? $titles[0] : '';
+        $etTitles = $record->getElementTexts('Dublin Core', 'Title');
+        return isset($etTitles[0]) ? $etTitles[0]->text : '';
     }
 
     /**

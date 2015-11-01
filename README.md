@@ -47,6 +47,17 @@ Notes
   the user who deleted the record is used.
   - Check Omeka logs after a successful rebuild to see possible issues.
 
+* Export of logs
+
+  Logs can be filtered and exported via the main page of the plugin. Supported
+  formats are:
+
+  - [CSV] (values are separated by a tabulation).
+  - [Flat Open Document Spreadsheet] or "fods", another standard format that can
+  be opened by any free spreadsheets or by any text editor (this is a simple xml
+  file). Note: With old releases of [LibreOffice] for Windows, a little free
+  [filter] may need to be installed.
+
 
 Warning
 -------
@@ -93,6 +104,9 @@ Copyright
 [History Log]: https://github.com/UCSCLibrary/HistoryLog
 [Omeka]: https://omeka.org
 [Curator Monitor]: https://github.com/Daniel-KM/CuratorMonitor
+[LibreOffice]: https://www.libreoffice.org/
+[Flat OpenDocument Spreadsheet]: https://en.wikipedia.org/wiki/OpenDocument_technical_specification
+[filter]: http://www.sylphide-consulting.com/shapekit/spreadsheet-generation/15-opendocument-flat-format
 [plugin issues]: https://github.com/UCSCLibrary/HistoryLog/issues
 [GNU/GPL v3]: https://www.gnu.org/licenses/gpl-3.0.html
 [Daniel-KM]: https://github.com/Daniel-KM

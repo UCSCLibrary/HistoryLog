@@ -92,32 +92,7 @@ div.record-title {
                         ?></a>
                         <div class="record-title"><?php echo $logEntry->displayCurrentTitle(); ?></div>
                     </td>
-                    <td><?php
-                    if (!empty($logEntry->part_of)) {
-                        switch ($logEntry->record_type) {
-                            case 'Item':
-                                echo '<a href="'
-                                    .  url(array(
-                                            'type' => 'collections',
-                                            'id' => $logEntry->part_of,
-                                        ), 'history_log_record_log')
-                                    . '">'
-                                    . __('Collection %d', $logEntry->part_of)
-                                    . '</a>';
-                                break;
-                            case 'File':
-                                echo '<a href="'
-                                    .  url(array(
-                                            'type' => 'items',
-                                            'id' => $logEntry->part_of,
-                                        ), 'history_log_record_log')
-                                    . '">'
-                                    . __('Item %d', $logEntry->part_of)
-                                    . '</a>';
-                                break;
-                        }
-                    }
-                    ?></td>
+                    <td><?php echo $logEntry->displayPartOf(true); ?></td>
                     <td><?php echo $logEntry->displayUser(); ?></td>
                     <td><?php echo $logEntry->displayOperation(); ?>
                     <?php if ($logEntry->isEntryToUndelete()):
