@@ -5,32 +5,17 @@
  * @package Omeka
  * @copyright Roy Rosenzweig Center for History and New Media, 2007-2011
  */
-class HistoryLog_Table_HistoryLogEntryTest extends HistoryLog_Test_AppTestCase
+class HistoryLog_HistoryLogMainTest extends HistoryLog_Test_AppTestCase
 {
     protected $_isAdminTest = true;
 
-     public function testCreate()
+    public function testCreate()
     {
         $item = $this->_createOne();
 
         $this->assertEquals(2, total_records('Item'));
         $this->assertEquals(1, total_records('HistoryLogEntry'));
         $this->assertEquals(3, total_records('HistoryLogChange'));
-    }
-
-     public function testUpdate()
-    {
-        $item = $this->_createOne();
-
-        $elementTexts = array();
-        $elementTexts['Dublin Core']['Title'][] = array('text' => 'title updated', 'html' => false);
-        $elementTexts['Dublin Core']['Subject'][] = array('text' => 'subject other', 'html' => false);
-        $item->addElementTextsByArray($elementTexts);
-        $item->save();
-
-        $this->assertEquals(2, total_records('Item'));
-        $this->assertEquals(2, total_records('HistoryLogEntry'));
-        $this->assertEquals(5, total_records('HistoryLogChange'));
     }
 
     public function testNoUpdate()
@@ -50,6 +35,21 @@ class HistoryLog_Table_HistoryLogEntryTest extends HistoryLog_Test_AppTestCase
         $this->assertEquals(2, total_records('Item'));
         $this->assertEquals(1, total_records('HistoryLogEntry'));
         $this->assertEquals(3, total_records('HistoryLogChange'));
+    }
+
+    public function testUpdateAdd()
+    {
+        $item = $this->_createOne();
+
+        $elementTexts = array();
+        $elementTexts['Dublin Core']['Title'][] = array('text' => 'title updated', 'html' => false);
+        $elementTexts['Dublin Core']['Subject'][] = array('text' => 'subject other', 'html' => false);
+        $item->addElementTextsByArray($elementTexts);
+        $item->save();
+
+        $this->assertEquals(2, total_records('Item'));
+        $this->assertEquals(2, total_records('HistoryLogEntry'));
+        $this->assertEquals(5, total_records('HistoryLogChange'));
     }
 
     public function testMultiple()
@@ -151,13 +151,10 @@ class HistoryLog_Table_HistoryLogEntryTest extends HistoryLog_Test_AppTestCase
 
         $this->assertEquals(2, total_records('Item'));
         $this->assertEquals(2, total_records('HistoryLogEntry'));
-        $this->markTestSkipped(
-            __('Builder_Item does not work with "overwrite", but fine in true use.')
-        );
         $this->assertEquals(4, total_records('HistoryLogChange'));
     }
 
-    public function testBuilderItemDelete()
+    public function testBuilderItemOverwriteDelete()
     {
         $item = $this->_createOne();
         $itemId = $item->id;
@@ -178,7 +175,7 @@ class HistoryLog_Table_HistoryLogEntryTest extends HistoryLog_Test_AppTestCase
 
         $this->assertEquals(2, total_records('Item'));
         $this->markTestSkipped(
-            __('Builder_Item does not work with "overwrite", but fine in true use.')
+            __('Builder_Item does not work with "overwrite" to delete an element.')
         );
         $this->assertEquals(2, total_records('HistoryLogEntry'));
         $this->assertEquals(5, total_records('HistoryLogChange'));
@@ -202,10 +199,38 @@ class HistoryLog_Table_HistoryLogEntryTest extends HistoryLog_Test_AppTestCase
         $item->save();
 
         $this->assertEquals(2, total_records('Item'));
-        $this->assertEquals(2, total_records('HistoryLogEntry'));
         $this->markTestSkipped(
             __('Process done via deleteElementTextsByElementId() does not log anything.')
         );
+        $this->assertEquals(2, total_records('HistoryLogEntry'));
         $this->assertEquals(5, total_records('HistoryLogChange'));
+    }
+
+    public function testItemAndCollection()
+    {
+        $item = $this->_createOne();
+        $itemId = $item->id;
+        unset($item);
+
+        // Create a collection.
+        $metadata = array();
+        $elementTexts = array();
+        $elementTexts['Dublin Core']['Title'][] = array('text' => 'Collection title 1', 'html' => false);
+        $elementTexts['Dublin Core']['Creator'][] = array('text' => 'Collection creator #1', 'html' => false);
+        $elementTexts['Dublin Core']['Date'][] = array('text' => 2002, 'html' => false);
+
+        $collection = insert_collection($metadata, $elementTexts);
+
+        $this->assertEquals(2, total_records('Item'));
+        $this->assertEquals(1, total_records('Collection'));
+        $this->assertEquals(2, total_records('HistoryLogEntry'));
+        $this->assertEquals(6, total_records('HistoryLogChange'));
+
+        // Put the item in that collection, without any other change.
+        $item = get_record_by_id('Item', $itemId);
+        $item->collection_id = $collection->id;
+        $item->save();
+        $this->assertEquals(3, total_records('HistoryLogEntry'));
+        $this->assertEquals(6, total_records('HistoryLogChange'));
     }
 }

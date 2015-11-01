@@ -38,7 +38,6 @@ class HistoryLog_Test_AppTestCase extends Omeka_Test_AppTestCase
         // Omeka adds one item by default.
         $this->assertEquals(1, total_records('Item'));
 
-        // Create ten items via standard functions.
         $metadata = array();
         $elementTexts = array();
         $elementTexts['Dublin Core']['Title'][] = array('text' => 'title 1', 'html' => false);

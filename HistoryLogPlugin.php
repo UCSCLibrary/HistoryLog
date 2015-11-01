@@ -31,9 +31,9 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         'define_acl',
         'define_routes',
         'before_save_record',
-        'before_save_element_text',
         'after_save_record',
         'before_delete_record',
+        'before_save_element_text',
         'before_delete_element_text',
         'before_delete_element',
         'export',
@@ -61,22 +61,12 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     /**
      * @var array
      *
-     * Array of old element texts, that are used to update.
-     * These events are saved only if the process succeeds ("after save").
+     * Array of prepared log entries saved during the "before save" process for
+     * updated record. It will be saved only if the process succeeds "after
+     * save". It allows to simplify the check of updates when the normal hooks
+     * are used.
      */
-    private $_oldTexts = array();
-
-    /**
-     * @var array
-     *
-     * Array of element texts before a change, by record and type of change.
-     *
-     * When an automatic process is done via a Builder (Item or Collection), the
-     * element texts are pre-saved and old content texts are not available in
-     * the hook before_save. The content of a record is emptied after the record
-     * is saved.
-     */
-    private $_texts = array();
+    private $_preparedLogEntries = array();
 
     /**
      * When the plugin installs, create the database tables to store the logs.
@@ -268,44 +258,13 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 
         // If it's not a new record, check for changes.
         if (empty($args['insert'])) {
-            $logEntry = new HistoryLogEntry();
-            $oldTexts = $logEntry->prepareEventForUpdate($record);
-            if ($oldTexts !== false) {
-                $this->_oldTexts[get_class($record)][$record->id] = $oldTexts;
+            // Prepare the log entry if none.
+            if (!isset($this->_preparedLogEntries[get_class($record)][$record->id])) {
+                $logEntry = new HistoryLogEntry();
+                $logEntry->prepareNewEvent($record);
+                $this->_preparedLogEntries[get_class($record)][$record->id] = $logEntry;
             }
-        }
-    }
-
-    /**
-     * Hook used before save an element text.
-     *
-     * The fonction "update_item" uses Builder_Item, that saves element texts
-     * before the record, so the old element texts are lost when it is used. So
-     * a check is done to save them in case of an update.
-     *
-     * @param array $args An array of parameters passed by the hook
-     * @return void
-     */
-    public function hookBeforeSaveElementText($args)
-    {
-        // Save old values for an update.
-        if (empty($args['insert'])) {
-            // Return the old and unmodified text too to avoid an issue when
-            // order of texts change, in particular when a text that is not the
-            // last is removed.
-            $record = $args['record'];
-            $db = $this->_db;
-            $sql = "SELECT text FROM {$db->ElementText} WHERE id = " . (integer) $record->id;
-            $oldText = $db->fetchOne($sql);
-            $this->_texts[$record->record_type][$record->record_id][$record->element_id][HistoryLogChange::TYPE_UPDATE][$record->id] = array(
-                'old' => $oldText,
-                'new' => $record->text,
-            );
-        }
-        // Save a new value.
-        else {
-            $record = $args['record'];
-            $this->_texts[$record->record_type][$record->record_id][$record->element_id][HistoryLogChange::TYPE_CREATE][] = $record->text;
+            // Else, all elements texts are ready!?
         }
     }
 
@@ -326,9 +285,6 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         // It's an update of a record.
         if (empty($args['insert'])) {
             $this->_logEvent($record, HistoryLogEntry::OPERATION_UPDATE);
-            // Normally useless but may avoid a double update and reduce memory.
-            unset($this->_oldTexts[get_class($record)][$record->id]);
-            unset($this->_texts[get_class($record)][$record->id]);
         }
 
         // This is a new record, imported or manually created.
@@ -358,6 +314,52 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     }
 
     /**
+     * Hook used before save an element text.
+     *
+     * The fonction "update_item" uses Builder_Item, that saves element texts
+     * before the record, so the old element texts are lost when it is used. So
+     * a check is done to save them in case of an update.
+     *
+     * @param array $args An array of parameters passed by the hook
+     * @return void
+     */
+    public function hookBeforeSaveElementText($args)
+    {
+        $elementText = $args['record'];
+
+        // Prepare the log entry if none.
+        if (!isset($this->_preparedLogEntries[$elementText->record_type][$elementText->record_id])) {
+            $logEntry = new HistoryLogEntry();
+            $record = get_record_by_id($elementText->record_type, $elementText->record_id);
+            if (empty($record)) {
+                return;
+            }
+            $logEntry->prepareNewEvent($record, 'element_text');
+            $this->_preparedLogEntries[$elementText->record_type][$elementText->record_id] = $logEntry;
+        }
+
+        $logEntry = $this->_preparedLogEntries[$elementText->record_type][$elementText->record_id];
+
+        // Save old values for an update.
+        if (empty($args['insert'])) {
+            // Return the old and unmodified text too to avoid an issue when
+            // order of texts change, in particular when a text that is not the
+            // last is removed.
+            $db = $this->_db;
+            $sql = "SELECT text FROM {$db->ElementText} WHERE id = " . (integer) $elementText->id;
+            $oldText = $db->fetchOne($sql);
+            $logEntry->prepareOneElementText($elementText->element_id, HistoryLogChange::TYPE_UPDATE, array(
+                'old' => $oldText,
+                'new' => $elementText->text,
+            ), $elementText->id);
+        }
+        // Save a new value.
+        else {
+            $logEntry->prepareOneElementText($elementText->element_id, HistoryLogChange::TYPE_CREATE, $elementText->text);
+        }
+    }
+
+    /**
      * When a record is deleted, log the event.
      *
      * @param array $args An array of parameters passed by the hook.
@@ -365,8 +367,22 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     public function hookBeforeDeleteElementText($args)
     {
-        $record = $args['record'];
-        $this->_texts[$record->record_type][$record->record_id][$record->element_id][HistoryLogChange::TYPE_DELETE][$record->id] = $record->text;
+        $elementText = $args['record'];
+
+        // Prepare the log entry if none.
+        if (!isset($this->_preparedLogEntries[$elementText->record_type][$elementText->record_id])) {
+            $logEntry = new HistoryLogEntry();
+            $record = get_record_by_id($elementText->record_type, $elementText->record_id);
+            if (empty($record)) {
+                return;
+            }
+            $logEntry->prepareNewEvent($record, 'element_text');
+            $this->_preparedLogEntries[$elementText->record_type][$elementText->record_id] = $logEntry;
+        }
+
+        $logEntry = $this->_preparedLogEntries[$elementText->record_type][$elementText->record_id];
+
+        $logEntry->prepareOneElementText($elementText->element_id, HistoryLogChange::TYPE_DELETE, $elementText->text, $elementText->id);
     }
 
     /**
@@ -666,31 +682,34 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      * @param Object|array $record The Omeka record to log. It should be an
      * object for a "create" or an "update".
      * @param string $operation The type of event to log (e.g. "create"...).
-     * @param string|array $change An extra piece of type specific data for the
+     * @param string|array $changes An extra piece of type specific data for the
      * log.
      * @return void
      */
-    private function _logEvent($record, $operation, $change = null)
+    private function _logEvent($record, $operation, $changes = null)
     {
         $user = current_user();
         if (is_null($user)) {
             throw new Exception(__('Could not retrieve user info.'));
         }
 
-        // If the operation is an update, the method should be selected.
-        $updateType = null;
-        if ($operation == HistoryLogEntry::OPERATION_UPDATE) {
-            $updateType = $this->_checkUpdateType($record);
-            $change = $updateType == 'element_texts'
-                ? $this->_texts[get_class($record)][$record->id]
-                : $this->_oldTexts[get_class($record)][$record->id];
+        // If the operation is an update, get the saved data.
+        if ($operation == HistoryLogEntry::OPERATION_UPDATE
+                && isset($this->_preparedLogEntries[get_class($record)][$record->id])
+            ) {
+            $logEntry = $this->_preparedLogEntries[get_class($record)][$record->id];
         }
 
-        $logEntry = new HistoryLogEntry();
+        // Normal save.
+        else {
+            $logEntry = new HistoryLogEntry();
+        }
 
         try {
             // Prepare the log entry.
-            $result = $logEntry->logEvent($record, $user, $operation, $change, $updateType);
+            $result = $logEntry->logEvent($record, $operation, $user, $changes);
+            // May avoid a double update.
+            unset($this->_preparedLogEntries[get_class($record)][$record->id]);
             // Quick check if the record is loggable.
             if (!$result) {
                 throw new Exception(__('This event is not loggable.'));
@@ -704,172 +723,5 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         } catch(Exception $e) {
             throw $e;
         }
-    }
-
-    /**
-     * Check the update type.
-     *
-     * @internal In Omeka, an update is different when manual or automatic: the
-     * mixin for element texts uses only post data (manual insert). So, to
-     * simplify the logging, the update is cached here for any type of update.
-     * This alllows to log the changes only when are really saved.
-     * Furthemore, a second way, via the hook before_save_element_texts, is used
-     * to get old values, because some methods process the save in two steps:
-     * "create" then "update", even if there is no change. So if the main method
-     * isn't used or values are empty, but the other one as elements, the latter
-     * is used.
-     *
-     * @param Record $record
-     * @return string The type of update : "record" or "element_texts".
-     */
-    protected function _checkUpdateType($record)
-    {
-        $updateType = null;
-
-        if (!isset($this->_texts[get_class($record)][$record->id])
-                && !isset($this->_oldTexts[get_class($record)][$record->id])
-            ) {
-            $updateType = 'record';
-            $this->_oldTexts[get_class($record)][$record->id] = array();
-            return $updateType;
-        }
-
-        if (!isset($this->_texts[get_class($record)][$record->id])) {
-            $updateType = 'record';
-            return $updateType;
-        }
-
-        if (!isset($this->_oldTexts[get_class($record)][$record->id])) {
-            $updateType = 'element_texts';
-            return $updateType;
-        }
-
-        // Define the method to process the save.
-        if (empty($this->_oldTexts[get_class($record)][$record->id])) {
-            $updateType = 'element_texts';
-            $change = isset($this->_texts[get_class($record)][$record->id])
-                // In that case the list of element texts is fine.
-                ? $this->_texts[get_class($record)][$record->id]
-                // The process is done nevertheless for external changes
-                // (collection...).
-                : array();
-        }
-
-        // Record way.
-        elseif (empty($this->_texts[get_class($record)][$record->id])) {
-            $updateType = 'record';
-            $change = $this->_oldTexts[get_class($record)][$record->id];
-        }
-
-        // Complex choice: the two are available, but the normal one may be
-        // without old values, and the one via element texts  may have false
-        // creation and update of elements.
-        else {
-            // Check if the old elements are really old ones: if they are
-            // the same as current ones, they aren't older.
-            $newElements = $this->_getCurrentElements($record);
-            $updateType = 'element_texts';
-            if (!is_null($newElements)) {
-                $oldElements = $this->_oldTexts[get_class($record)][$record->id];
-                // Compare old and new elements.
-                foreach ($newElements as $elementId => $newTexts) {
-                    if ($oldElements[$elementId] != $newTexts) {
-                        $updateType = 'record';
-                        break;
-                    }
-                }
-            }
-
-            // Nevertheless, if all element_texts are the same, there is no
-            // change, so use the record way.
-            if ($updateType == 'element_texts') {
-                $updateType = 'record';
-                $flag = true;
-                // Needed to prepare the next check.
-                $createTexts = array();
-                // Quick loop for changes.
-                foreach ($this->_texts[get_class($record)][$record->id] as $elementId => $changeTypes) {
-                    if (!empty($changeTypes[HistoryLogChange::TYPE_DELETE])){
-                        $updateType = 'element_texts';
-                        $flag = false;
-                        break;
-                    }
-                    if (!empty($changeTypes[HistoryLogChange::TYPE_CREATE])) {
-                        $updateType = 'element_texts';
-                        $createTexts[$elementId] = $changeTypes[HistoryLogChange::TYPE_CREATE];
-                    }
-                    if (!empty($changeTypes[HistoryLogChange::TYPE_UPDATE])) {
-                        $flag = false;
-                        foreach ($changeTypes[HistoryLogChange::TYPE_UPDATE] as $elementTextId => $oldNewTerm) {
-                            if ($oldNewTerm['new'] !== $oldNewTerm['old']) {
-                                $updateType = 'element_texts';
-                                break 2;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // A last check: if all element texts are "create" and there is no
-            // other process, and all element texts are the same than the record
-            // texts, this is a wrong update.
-            if (!empty($flag) && $updateType == 'element_texts') {
-                $old = $this->_oldTexts[get_class($record)][$record->id];
-                ksort($old);
-                ksort($createTexts);
-                if ($old == $createTexts) {
-                    $updateType = 'record';
-                }
-            }
-        }
-
-        return $updateType;
-    }
-
-    /**
-     * Helper to get current elements of a record.
-     *
-     * @param Record $record
-     * @return array|null
-     */
-    protected function _getCurrentElements($record)
-    {
-        // Get the current list of elements.
-        $newElements = array();
-
-        // If there are elements, the record is created via post (manually).
-        $viaPost = isset($record->Elements);
-        // Manual update.
-        if ($viaPost) {
-            foreach ($record->Elements as $elementId => $elementTexts) {
-                foreach ($elementTexts as $elementText) {
-                    // strlen() is used to allow values like "0".
-                    if (strlen($elementText['text']) > 0) {
-                        $newElements[$elementId][] = $elementText['text'];
-                    }
-                }
-            }
-        }
-
-        // Automatic update.
-        else {
-            $elementTexts = get_records(
-                'ElementText',
-                array(
-                    'record_type' => get_class($record),
-                    'record_id' => $record->id),
-                0);
-
-            if (is_null($elementTexts)) {
-                // TODO Throw an error? Normally, never here.
-                return;
-            }
-
-            foreach ($elementTexts as $elementText) {
-                $newElements[$elementText->element_id][] = $elementText->text;
-            }
-        }
-
-        return $newElements;
     }
 }
