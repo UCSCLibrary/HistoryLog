@@ -299,9 +299,36 @@ class HistoryLog_Form_Search extends Omeka_Form
         $options = array(
             '' => __('Normal display'),
             'csv' => __('csv (with tabulations)'),
+            'ods' => __('ods (OpenDocument Spreasheet)'),
             'fods' => __('fods (Flat OpenDocument Spreadsheet)'),
         );
 
+        $zipProcessor = $this->_getZipProcessor();
+        if (!$zipProcessor) {
+            unset($options['ods']);
+        }
+
         return $options;
+    }
+
+    /**
+     * Check if the server support zip and return the method used.
+     *
+     * @return boolean
+     */
+    protected function _getZipProcessor()
+    {
+        if (class_exists('ZipArchive') && method_exists('ZipArchive', 'setCompressionName')) {
+            return 'ZipArchive';
+        }
+
+        // Test the zip command line via  the processor of ExternalImageMagick.
+        try {
+            $cmd = 'which zip';
+            Omeka_File_Derivative_Strategy_ExternalImageMagick::executeCommand($cmd, $status, $output, $errors);
+            return $status == 0 ? trim($output) : false;
+        } catch (Exception $e) {
+            return false;
+        }
     }
 }
