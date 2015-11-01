@@ -16,14 +16,6 @@ special element "Metadata Status" with values "Incomplete", "Complete",
 "Fact Checked", "Ready to Publish" and "Published".
 
 
-Installation
-------------
-
-Uncompress files and rename plugin folder "HistoryLog".
-
-Then install it like any other Omeka plugin.
-
-
 Notes
 -----
 
@@ -52,15 +44,23 @@ Notes
   Logs can be filtered and exported via the main page of the plugin. Supported
   formats are:
 
-  - [CSV] (values are separated by a tabulation).
-  - [Open Document Spreadsheet] or "ods", the normalized format for
+  - CSV, with values separated by a tabulation.
+  - [OpenDocument Spreadsheet] or "ods", the normalized format for
   spreadsheets, that  can be open by any free spreadsheets like [LibreOffice],
   or not free ones. This format requires that Zip to be installed with PHP on
   the server (generally by default).
-  - [Flat Open Document Spreadsheet] or "fods", another standard format that can
+  - [Flat OpenDocument Spreadsheet] or "fods", another standard format that can
   be opened by any free spreadsheets or by any text editor (this is a simple xml
   file). Note: With old releases of [LibreOffice] for Windows, a little free
   [filter] may need to be installed.
+
+
+Installation
+------------
+
+Uncompress files and rename plugin folder "HistoryLog".
+
+Then install it like any other Omeka plugin.
 
 
 Warning

@@ -89,6 +89,7 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
                     break;
 
                 case 'ods':
+                    $this->_prepareSpreadsheet();
                     $filename = $this->_prepareOds();
                     if (empty($filename)) {
                         $flashMessenger = $this->_helper->FlashMessenger;
@@ -107,6 +108,7 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
                     break;
 
                 case 'fods':
+                    $this->_prepareSpreadsheet();
                     $response
                         ->setHeader('Content-Disposition',
                             'attachment; filename=Omeka_History_Log_' . date('Ymd-His') . '.fods')
@@ -160,27 +162,46 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
     }
 
     /**
-     * Prepare output as OpenDocument Spreadsheet (ods).
+     * Prepare arguments for a spreadsheet.
      *
-     * @return string|null Filename of the ods. Null if error.
+     * @return array
      */
-    protected function _prepareOds()
+    protected function _prepareSpreadsheet()
     {
+        $tableNames = array(__('Export'));
+        $headers = array($this->view->headers);
         $dateTime = date('Y-m-d\TH:i:s') . strtok(substr(microtime(), 1), ' ');
         $cells = (iterator_count(loop('HistoryLogEntry')) + ($this->view->params['exportheaders'] ? 1 : 0)) * count($this->view->headers);
 
-        $options = array(
+        $variables = array(
+            'module' => 'history-log',
             'params' => $this->view->params,
-            'tableNames' => array(__('Export')),
-            'headers' => array($this->view->headers),
+            'tableNames' => $tableNames,
+            'headers' => $headers,
             'loop' => 'HistoryLogEntry',
             'generator' => $this->view->generator,
             'user' => current_user(),
             'dateTime' => $dateTime,
             'cells' => $cells,
             'tableActive' => 0,
-            'declaration' => true,
+            'declaration' => false,
         );
+
+        unset($this->view->params);
+        unset($this->view->headers);
+        unset($this->view->generator);
+
+        $this->view->variables = $variables;
+    }
+
+    /**
+     * Prepare output as OpenDocument Spreadsheet (ods).
+     *
+     * @return string|null Filename of the ods. Null if error.
+     */
+    protected function _prepareOds()
+    {
+        $this->view->variables['declaration'] = true;
 
         // Create a temp dir to build the ods.
         $tempDir = tempnam(sys_get_temp_dir(), 'ods');
@@ -191,7 +212,7 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
         // Prepare the structure of the ods file via a temp dir.
         $sourceDir = dirname(dirname(__FILE__))
             . DIRECTORY_SEPARATOR . 'views'
-            . DIRECTORY_SEPARATOR . 'admin'
+            . DIRECTORY_SEPARATOR . 'scripts'
             . DIRECTORY_SEPARATOR . 'ods'
             . DIRECTORY_SEPARATOR . 'base';
         mkdir($tempDir . DIRECTORY_SEPARATOR . 'META-INF');
@@ -229,7 +250,9 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
         foreach ($xmlFiles as $file) {
             $name = pathinfo($file, PATHINFO_FILENAME);
             $filename = tempnam(sys_get_temp_dir(), $name);
-            $xml = $this->view->partial('ods/' . $name . '.php', $options);
+            $xml = $this->view->partial('ods/' . $name . '.php',
+                $this->view->variables['module'],
+                $name == 'content' ? array('variables' => $this->view->variables) : $this->view->variables);
             $result = file_put_contents($filename, $xml);
             if (!$result) {
                 return;
