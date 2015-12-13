@@ -47,8 +47,8 @@ Notes
   - CSV, with values separated by a tabulation.
   - [OpenDocument Spreadsheet] or "ods", the normalized format for
   spreadsheets, that  can be open by any free spreadsheets like [LibreOffice],
-  or not free ones. This format requires that Zip to be installed with PHP on
-  the server (generally by default).
+  or not free ones. This format requires that Zip to be installed on the server
+  (generally by default).
   - [Flat OpenDocument Spreadsheet] or "fods", another standard format that can
   be opened by any free spreadsheets or by any text editor (this is a simple xml
   file). Note: With old releases of [LibreOffice] for Windows, a little free

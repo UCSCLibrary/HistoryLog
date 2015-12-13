@@ -218,6 +218,9 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
     }
 
     /**
+     * Retrieve an array of key=>value pairs that can be used as options in a
+     * <select> form input.
+     *
      * @param Omeka_Db_Select
      * @param array
      * @return void

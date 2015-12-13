@@ -120,7 +120,7 @@ class HistoryLogChange extends Omeka_Record_AbstractRecord
             return;
         }
 
-        switch ($change->type) {
+        switch ($this->type) {
             case HistoryLogChange::TYPE_CREATE:
                 $type = __('Created');
                 break;
@@ -240,7 +240,8 @@ class HistoryLogChange extends Omeka_Record_AbstractRecord
      */
     public function isOwnedBy($user)
     {
-        if (($entry = $this->getEntry())) {
+        $entry = $this->getEntry();
+        if ($entry) {
             return $entry->isOwnedBy($user);
         } else {
             return false;

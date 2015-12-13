@@ -58,7 +58,7 @@ div.record-title {
     </div>
         <?php if (iterator_count(loop('HistoryLogEntry'))): ?>
         <div class="pagination"><?php echo $paginationLinks = pagination_links(); ?></div>
-        <table id="history-log-entries" cellspacing="0" cellpadding="0">
+        <table id="history-log-entries">
             <thead>
                 <tr>
                     <?php

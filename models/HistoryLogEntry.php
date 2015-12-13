@@ -529,7 +529,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
             $elementSet = $element->getElementSet();
             if (empty($element)) {
                 _log(__('Element Set #%d for element #%d does not exist.',
-                    $element->$element_set_id, $change->element_id), Zend_Log::NOTICE);
+                    $element->element_set_id, $change->element_id), Zend_Log::NOTICE);
                 continue;
             }
             $elementTexts[$elementSet->name][$element->name][] = array(
