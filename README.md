@@ -8,6 +8,7 @@ recall this information later.
 This is not a replacement for your regular backups of the database, even if
 each change is logged.
 
+If you use this plugin, please take a moment to submit feedback about your experience, so we can keep making Omeka better: [User Survey] (https://docs.google.com/forms/d/1LrQ-E0gQ9Qh0CSSMa8MMfK6WxHCUoT6vqiv42QG72qo/viewform?usp=send_form "User Survey")
 
 Installation
 ------------
