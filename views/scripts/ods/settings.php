@@ -13,7 +13,7 @@ if ($declaration):
     <config:config-item-map-entry>
      <config:config-item config:name="ViewId" config:type="string">view1</config:config-item>
      <config:config-item-map-named config:name="Tables">
-      <config:config-item-map-entry config:name="<?php echo $tableNames[$tableActive]; ?>">
+      <config:config-item-map-entry config:name="<?php echo xml_escape($tableNames[$tableActive]); ?>">
        <config:config-item config:name="CursorPositionX" config:type="int">0</config:config-item>
        <config:config-item config:name="CursorPositionY" config:type="int">0</config:config-item>
        <config:config-item config:name="HorizontalSplitMode" config:type="short">0</config:config-item>
@@ -31,7 +31,7 @@ if ($declaration):
        <config:config-item config:name="ShowGrid" config:type="boolean">true</config:config-item>
       </config:config-item-map-entry>
      </config:config-item-map-named>
-     <config:config-item config:name="ActiveTable" config:type="string"><?php echo $tableNames[$tableActive]; ?></config:config-item>
+     <config:config-item config:name="ActiveTable" config:type="string"><?php echo xml_escape($tableNames[$tableActive]); ?></config:config-item>
      <config:config-item config:name="HorizontalScrollbarWidth" config:type="int">1280</config:config-item>
      <config:config-item config:name="ZoomType" config:type="short">0</config:config-item>
      <config:config-item config:name="ZoomValue" config:type="int">100</config:config-item>

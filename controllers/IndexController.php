@@ -16,6 +16,9 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
     protected $_browseRecordsPerPage = 100;
     protected $_autoCsrfProtection = true;
 
+    private $_zipGenerator = '';
+    private $_unzipGenerator = '';
+
     public function init()
     {
         $this->_helper->db->setDefaultModelName('HistoryLogEntry');
@@ -201,24 +204,39 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
      */
     protected function _prepareOds()
     {
+        // Allows to manage ods and fods.
         $this->view->variables['declaration'] = true;
+        $this->view->variables['format'] = 'ods';
 
-        // Create a temp dir to build the ods.
-        $tempDir = tempnam(sys_get_temp_dir(), 'ods');
-        unlink($tempDir);
-        mkdir($tempDir);
-        // @chmod($tempDir, 0755);
+        // Create a new document from the original files, with headers.
+        $result = $this->_createOpenDocument();
+        return $result;
+    }
 
+    /**
+     * Create a new Open Document.
+     *
+     * @todo Add checks.
+     *
+     * @return boolean
+     */
+    protected function _createOpenDocument()
+    {
         // Prepare the structure of the ods file via a temp dir.
         $sourceDir = dirname(dirname(__FILE__))
             . DIRECTORY_SEPARATOR . 'views'
             . DIRECTORY_SEPARATOR . 'scripts'
             . DIRECTORY_SEPARATOR . 'ods'
             . DIRECTORY_SEPARATOR . 'base';
-        mkdir($tempDir . DIRECTORY_SEPARATOR . 'META-INF');
-        // @chmod($tempDir . DIRECTORY_SEPARATOR . 'META-INF');
-        mkdir($tempDir . DIRECTORY_SEPARATOR . 'Thumbnails');
-        // @chmod($tempDir . DIRECTORY_SEPARATOR . 'Thumbnails');
+
+        // Create a temp dir to build the ods.
+        $tempDir = tempnam(sys_get_temp_dir(), $this->view->variables['format']);
+        unlink($tempDir);
+        mkdir($tempDir, 0755, true);
+        $this->_tempDir = $tempDir;
+
+        mkdir($tempDir . DIRECTORY_SEPARATOR . 'META-INF', 0755, true);
+        mkdir($tempDir . DIRECTORY_SEPARATOR . 'Thumbnails', 0755, true);
 
         // Copy the default files.
         $defaultFiles = array(
@@ -234,13 +252,13 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
             $result = copy(
                 $sourceDir . DIRECTORY_SEPARATOR . $file,
                 $tempDir . DIRECTORY_SEPARATOR . $file);
-            if (!$result) {
-                return;
+            if (empty($result)) {
+                return false;
             }
             // @chmod($tempDir . DIRECTORY_SEPARATOR . $file, 0644);
         }
 
-        // Prepare the other files.
+        // Prepare the files that may change.
         $xmlFiles = array(
             'meta.xml',
             'settings.xml',
@@ -258,40 +276,107 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
                 return;
             }
             $result = rename($filename, $tempDir . DIRECTORY_SEPARATOR . $file);
-            if (!$result) {
-                return;
+            if (empty($result)) {
+                return false;
             }
             // @chmod($tempDir . DIRECTORY_SEPARATOR . $file, 0644);
         }
 
-        // Prepare the zip file.
-        $filename = tempnam(sys_get_temp_dir(), 'OmekaOds');
-        // No simple function to create a temp file with an extension.
-        unlink($filename);
-        $filename .= strtok(substr(microtime(), 2), ' ') . '.ods';
+        return $this->_convertDirToOpenDocument($tempDir);
+    }
 
-        // Get the zip processor.
-        $zipProcessor = $this->_getZipProcessor();
-        if (empty($zipProcessor)) {
-            return;
+    protected function _convertDirToOpenDocument($tempDir)
+    {
+        // No simple function to create a temp file with an extension.
+        $filename = tempnam(sys_get_temp_dir(), 'OmekaOds');
+        unlink($filename);
+        $filename .= strtok(substr(microtime(), 2), ' ') . '.' . $this->view->variables['format'];
+
+        $result = $this->_zip($tempDir, $filename);
+        if (empty($result)) {
+            return false;
         }
 
-        switch ($zipProcessor) {
+        $result = $this->_rrmdir($tempDir);
+        return $filename;
+    }
+
+    /**
+     * Check if the server support zip.
+     *
+     * @return boolean
+     */
+    protected function _getZipProcessor()
+    {
+        if (class_exists('ZipArchive') && method_exists('ZipArchive', 'setCompressionName')) {
+            $this->_zipGenerator = 'ZipArchive';
+            $this->_unzipGenerator = 'ZipArchive';
+            return true;
+        }
+
+        try {
+            $cmd = 'which zip';
+            $status = $output = $errors = null;
+            $this->_executeCommand($cmd, $status, $output, $errors);
+            if ($status !== 0) {
+                return false;
+            }
+            $this->_zipGenerator = trim($output);
+        } catch (Exception $e) {
+            return false;
+        }
+
+        try {
+            $cmd = 'which unzip';
+            $status = $output = $errors = null;
+            $this->_executeCommand($cmd, $status, $output, $errors);
+            if ($status !== 0) {
+                return false;
+            }
+            $this->_unzipGenerator = trim($output);
+        } catch (Exception $e) {
+            return false;
+        }
+
+        return true;
+    }
+
+    protected function _zip($source, $destination)
+    {
+        // Zip the result.
+        switch ($this->_zipGenerator) {
             case 'ZipArchive':
                 // Create the zip.
                 $zip = new ZipArchive();
-                if ($zip->open($filename, ZipArchive::CREATE) !== true) {
-                    return;
+                if ($zip->open($destination, ZipArchive::CREATE) !== true) {
+                    return false;
                 }
 
                 // Add all files.
-                foreach ($defaultFiles as $file) {
-                    $zip->addFile($tempDir . DIRECTORY_SEPARATOR . $file, $file);
-                    $zip->setCompressionName($file, ZipArchive::CM_DEFLATE);
+                $files = $this->_recursive_glob($source . DIRECTORY_SEPARATOR . '*');
+                if (empty($files)) {
+                    return false;
                 }
-                foreach ($xmlFiles as $file) {
-                    $zip->addFile($tempDir . DIRECTORY_SEPARATOR . $file, $file);
-                    $zip->setCompressionName($file, ZipArchive::CM_DEFLATE);
+
+                // In OpenDocument, "mimetype" must be the first file, stored.
+                $mimetype = $source . DIRECTORY_SEPARATOR . 'mimetype';
+                $key = array_search($mimetype, $files);
+                if ($key === false) {
+                    return false;
+                }
+                unset($files[$key]);
+                array_unshift($files, $mimetype);
+
+                $sourceLength = strlen($source);
+                foreach ($files as $file) {
+                    $relativePath = substr($file, $sourceLength + 1);
+                    if (is_dir($file)) {
+                        $result = $zip->addEmptyDir($relativePath);
+                    }
+                    else {
+                        $result = $zip->addFile($file, $relativePath);
+                    }
+                    $zip->setCompressionName($relativePath, ZipArchive::CM_DEFLATE);
                 }
 
                 // No compression for "mimetype" to be readable directly by the OS.
@@ -300,52 +385,117 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
                 // Zip the file.
                 $result = $zip->close();
                 if (empty($result)) {
-                    return;
+                    return false;
                 }
                 break;
 
             case '/usr/bin/zip':
             default:
                 // Create the zip file with "mimetype" uncompressed.
-                $cd = 'cd ' . escapeshellarg($tempDir);
+                $cd = 'cd ' . escapeshellarg($source);
                 $cmd = $cd
-                    . ' && ' . $zipProcessor . ' --quiet -X -0 ' . escapeshellarg($filename) . ' ' . escapeshellarg('mimetype');
-                Omeka_File_Derivative_Strategy_ExternalImageMagick::executeCommand($cmd, $status, $output, $errors);
-                if ($status != 0) {
+                    . ' && ' . $this->_zipGenerator . ' --quiet -X -0 ' . escapeshellarg($destination) . ' ' . escapeshellarg('mimetype');
+                $status = $output = $errors = null;
+                $result = $this->_executeCommand($cmd, $status, $output, $errors);
+                if (empty($result)) {
                     return false;
                 }
 
                 // Add other files and compress them.
                 $cmd = $cd
-                    . ' && ' . $zipProcessor . ' --quiet -X -9 --exclude ' . escapeshellarg('mimetype') . ' --recurse-paths ' . escapeshellarg($filename) . ' ' . escapeshellarg('.');
-                Omeka_File_Derivative_Strategy_ExternalImageMagick::executeCommand($cmd, $status, $output, $errors);
-                if ($status != 0) {
+                    . ' && ' . $this->_zipGenerator . ' --quiet -X -9 --exclude ' . escapeshellarg('mimetype') . ' --recurse-paths ' . escapeshellarg($destination) . ' ' . escapeshellarg('.');
+                $status = $output = $errors = null;
+                $result = $this->_executeCommand($cmd, $status, $output, $errors);
+                if (empty($result)) {
                     return false;
                 }
                 break;
         }
+        return true;
+    }
 
-        return $filename;
+    protected function _unzip($source, $destination)
+    {
+        switch ($this->_unzipGenerator) {
+            case 'ZipArchive':
+                $zip = new ZipArchive;
+                $result = $zip->open($source);
+                if (empty($result)) {
+                    return false;
+                }
+                $zip->extractTo($destination);
+                $result = $zip->close();
+                if (empty($result)) {
+                    return false;
+                }
+                break;
+
+            case '/usr/bin/unzip':
+            default:
+                $cmd = $this->_unzipGenerator . ' ' . escapeshellarg($source) . ' -d ' . escapeshellarg($destination);
+                $status = $output = $errors = null;
+                $result = $this->_executeCommand($cmd, $status, $output, $errors);
+                if (empty($result)) {
+                    return false;
+                }
+                break;
+        }
+        return true;
     }
 
     /**
-     * Check if the server support zip and return the method used.
+     * Get all dirs and files of a directory, recursively, via glob().
      *
+     * Does not support flag GLOB_BRACE
+     * @return array
+     */
+    protected function _recursive_glob($pattern, $flags = 0)
+    {
+        if (empty($pattern)) {
+            return array();
+        }
+        $files = glob($pattern, $flags);
+        foreach (glob(dirname($pattern) . DIRECTORY_SEPARATOR . '*', GLOB_ONLYDIR | GLOB_NOSORT) as $dir) {
+            $files = array_merge($files, $this->_recursive_glob($dir . DIRECTORY_SEPARATOR . basename($pattern), $flags));
+        }
+        return $files;
+    }
+
+    /**
+     * Removes directories recursively.
+     *
+     * @param string $dirPath Directory name.
      * @return boolean
      */
-    protected function _getZipProcessor()
+    protected function _rrmdir($dirPath)
     {
-        if (class_exists('ZipArchive') && method_exists('ZipArchive', 'setCompressionName')) {
-            return 'ZipArchive';
+        $glob = glob($dirPath);
+        foreach ($glob as $g) {
+            if (!is_dir($g)) {
+                unlink($g);
+            }
+            else {
+                $this->_rrmdir("$g/*");
+                rmdir($g);
+            }
         }
+        return true;
+    }
 
-        // Test the zip command line via  the processor of ExternalImageMagick.
-        try {
-            $cmd = 'which zip';
-            Omeka_File_Derivative_Strategy_ExternalImageMagick::executeCommand($cmd, $status, $output, $errors);
-            return $status == 0 ? trim($output) : false;
-        } catch (Exception $e) {
-            return false;
-        }
+    /**
+     * Execute a command via the command line.
+     *
+     * @internal Values are passed by reference.
+     *
+     * @param string $integer
+     * @param integer $status
+     * @param string $output
+     * @param string $errors
+     * @return boolean
+     */
+    protected function _executeCommand($cmd, &$status, &$output, &$errors)
+    {
+        Omeka_File_Derivative_Strategy_ExternalImageMagick::executeCommand($cmd, $status, $output, $errors);
+        return $status == 0;
     }
 }

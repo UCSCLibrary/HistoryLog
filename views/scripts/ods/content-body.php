@@ -23,7 +23,7 @@ $betweenCells = $afterCell . $beforeCell;
 
 foreach ($tableNames as $iTable => $tableName):
     // Main tag of the table.
-    echo str_repeat($indent, 3) . '<table:table table:name="' . $tableName . '" table:style-name="ta1">' . $eol;
+    echo str_repeat($indent, 3) . '<table:table table:name="' . xml_escape($tableName) . '" table:style-name="ta1">' . $eol;
 
     // Prepare the style of each column (the same in fact).
     echo str_repeat($indent, 4) . '<table:table-column table:style-name="co1" table:default-cell-style-name="Default"/>' . $eol;
@@ -55,7 +55,7 @@ foreach ($tableNames as $iTable => $tableName):
 
             // Replace all internal ends of line by a tag.
             $row = array_map(function ($value) { return str_replace(PHP_EOL, '</text:p><text:p>', $value); }, $row);
-            echo $beforeCell . implode($betweenCells, $row) . $afterCell;
+            echo $beforeCell . implode($betweenCells, array_map('xml_escape', $row)) . $afterCell;
 
             echo str_repeat($indent, 4) . '</table:table-row>' . $eol;
         endforeach;
