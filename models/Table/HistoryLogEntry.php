@@ -26,7 +26,8 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
         if (!empty($until)) {
             $params['until'] = $until;
         }
-        if (!empty($user)) {
+        // An anonymous user can change an element (#0).
+        if (!is_null($user)) {
             $params['user'] = $user;
         }
         return $this->findBy($params, $limit, $page);

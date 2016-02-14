@@ -32,7 +32,7 @@ class Table_HistoryLogChange extends Omeka_Db_Table
     /**
      * Retrieve changes associated with an history log entry.
      *
-     * @param Entry|integer $entry May be multiple.
+     * @param Entry|integer|array $entry May be multiple.
      * @param array $elements Optional If given, this will only retrieve
      * elements with these specific ids.
      * @param string $sort The manner by which to order the changes.

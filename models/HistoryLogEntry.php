@@ -433,7 +433,8 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
             default:
                 $this->setPartOf(0);
         }
-        $user = current_user();
+        // Some plugins like Scripto allow anonymous users.
+        $user = current_user() ?: new User;
         $this->setUserId($user->id);
         $this->operaiton = HistoryLogEntry::OPERATION_CREATE;
         $this->added = $record->added;
@@ -516,7 +517,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
             $added = $logEntryCreate->added;
         }
 
-        $currentUser = current_user();
+        $currentUser = current_user() ?: new User;
 
         $changes = $logEntry->getChanges();
         foreach ($changes as $change) {
@@ -542,7 +543,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
             case 'Item':
                 $record = new Item();
                 $record->id = $logEntry->record_id;
-                $record->user = $logEntry->user_id ?: $currentUser->id;
+                $record->user = $logEntry->user_id ?: (integer) $currentUser->id;
                 $record->added = $added;
                 if ($logEntry->part_of) {
                     // Check if the collection still exists.
@@ -557,7 +558,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
             case 'Collection':
                 $item = new Collection();
                 $record->id = $logEntry->record_id;
-                $record->user = $logEntry->user_id ?: $currentUser->id;
+                $record->user = $logEntry->user_id ?: (integer) $currentUser->id;
                 $record->added = $added;
                 $record = update_collection($record, $metadata, $elementTexts);
                 break;
@@ -646,7 +647,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
      *
      * @internal Check is done during validation.
      *
-     * @param int $id The record type
+     * @param int $type The record type.
      */
     public function setRecordType($type)
     {
@@ -656,7 +657,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     /**
      * Sets the record id.
      *
-     * @param int $id The record id
+     * @param int $id The record id.
      */
     public function setRecordId($id)
     {
@@ -808,7 +809,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     public function getChanges()
     {
         if (empty($this->_changes)) {
-            $this->_changes =$this->getTable('HistoryLogChange')
+            $this->_changes = $this->getTable('HistoryLogChange')
                 ->findByEntry($this->id);
         }
         return $this->_changes;
@@ -1351,7 +1352,9 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
     {
         $user = $this->getOwner();
         if (empty($user)) {
-            return __('No user / deleted user [%d]', $this->user_id);
+            return $this->user_id
+                ? __('Deleted user [%d]', $this->user_id)
+                : __('Anonymous user');
         }
         return $user->name . ' (' . $user->username . ')';
     }
@@ -1582,6 +1585,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
             $this->addError('operation', __('Operation "%s" is not correct.', $this->operation));
         }
     }
+
     /**
      * Check if the operation is valid.
      *

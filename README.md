@@ -54,7 +54,9 @@ Notes
   file). Note: With old releases of [LibreOffice] for Windows, a little free
   [filter] may need to be installed.
 
-If you use this plugin, please take a moment to submit feedback about your experience, so we can keep making Omeka better: [User Survey] (https://docs.google.com/forms/d/1LrQ-E0gQ9Qh0CSSMa8MMfK6WxHCUoT6vqiv42QG72qo/viewform?usp=send_form "User Survey")
+If you use this plugin, please take a moment to submit feedback about your
+experience, so we can keep making Omeka better: see [User Survey].
+
 
 Installation
 ------------
@@ -110,6 +112,7 @@ Copyright
 [Omeka]: https://omeka.org
 [Curator Monitor]: https://github.com/Daniel-KM/CuratorMonitor
 [OpenDocument Spreadsheet]: http://opendocumentformat.org/
+[User Survey]: https://docs.google.com/forms/d/1LrQ-E0gQ9Qh0CSSMa8MMfK6WxHCUoT6vqiv42QG72qo/viewform?usp=send_form
 [LibreOffice]: https://www.libreoffice.org/
 [Flat OpenDocument Spreadsheet]: https://en.wikipedia.org/wiki/OpenDocument_technical_specification
 [filter]: http://www.sylphide-consulting.com/shapekit/spreadsheet-generation/15-opendocument-flat-format

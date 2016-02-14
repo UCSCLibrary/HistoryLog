@@ -690,7 +690,17 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     {
         $user = current_user();
         if (is_null($user)) {
-            throw new Exception(__('Could not retrieve user info.'));
+            // Some contribution plugins like Scripto allow anonymous users to
+            // edit an element of a record.
+            $user = new User;
+            // Only the user id is set in HistoryLog entries.
+            $user->id = 0;
+            // The username should be unique. It can be the ip, like the wiki
+            // used by Scripto.
+            $user->username = 'anonymous';
+            $user->role = 'anonymous';
+            $user->name = 'anonymous';
+            // throw new Exception(__('Could not retrieve user info.'));
         }
 
         // If the operation is an update, get the saved data.
