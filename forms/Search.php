@@ -237,6 +237,7 @@ class HistoryLog_Form_Search extends Omeka_Form
     {
         $options = array(
             '' => __('All Users'),
+            '0' => __('Anonymous User'),
         );
 
         try {
