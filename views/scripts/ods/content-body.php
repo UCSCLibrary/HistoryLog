@@ -31,7 +31,7 @@ foreach ($tableNames as $iTable => $tableName):
     // Row for headers.
     if ($params['exportheaders']):
         echo str_repeat($indent, 4) . '<table:table-row table:style-name="ro1">' . $eol;
-        echo $beforeCell . implode($betweenCells, $headers[$iTable]) . $afterCell;
+        echo $beforeCell . implode($betweenCells, array_map('xml_escape', $headers[$iTable])) . $afterCell;
         echo str_repeat($indent, 4) . '</table:table-row>' . $eol;
     endif;
 
