@@ -26,11 +26,16 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         'upgrade',
         'uninstall',
         'uninstall_message',
+        'config_form',
+        'config',
         'define_acl',
         'define_routes',
         'before_save_record',
         'after_save_record',
-        'after_delete_record',
+        'before_delete_record',
+        'before_save_element_text',
+        'before_delete_element_text',
+        'before_delete_element',
         'export',
         'admin_items_show',
         'admin_collections_show',
@@ -47,12 +52,21 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     );
 
     /**
+     * @var array Options and their default values.
+     */
+    protected $_options = array(
+        'history_log_display' => '[]',
+    );
+
+    /**
      * @var array
      *
-     * Array of new log entries with old element texts, that are used to update.
-     * These events are saved only if the process succeeds ("after save").
+     * Array of prepared log entries saved during the "before save" process for
+     * updated record. It will be saved only if the process succeeds "after
+     * save". It allows to simplify the check of updates when the normal hooks
+     * are used.
      */
-    private $_logEntries = array();
+    private $_preparedLogEntries = array();
 
     /**
      * When the plugin installs, create the database tables to store the logs.
@@ -92,6 +106,18 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
             INDEX `entry_id_element_id` (`entry_id`, `element_id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;";
         $db->query($sql);
+
+        // Add a new table to simplify complex queries with calendar requests.
+        $sql = "
+            CREATE TABLE IF NOT EXISTS `{$db->prefix}numerals` (
+                `i` TINYINT unsigned NOT NULL,
+                PRIMARY KEY (`i`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;";
+        $db->query($sql);
+        $sql = "INSERT INTO `{$db->prefix}numerals` (`i`) VALUES (0), (1), (2), (3), (4), (5), (6), (7), (8), (9);";
+        $db->query($sql);
+
+        $this->_installOptions();
     }
 
     /**
@@ -119,6 +145,10 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         $db-> query($sql);
         $sql = "DROP TABLE IF EXISTS `{$db->HistoryLogChange}`";
         $db-> query($sql);
+        $sql = "DROP TABLE IF EXISTS `{$db->prefix}numerals`";
+        $db-> query($sql);
+
+        $this->_uninstallOptions();
     }
 
     /**
@@ -127,6 +157,37 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     public function hookUninstallMessage()
     {
         echo __('%sWarning%s: All the history log entries will be deleted.', '<strong>', '</strong>');
+    }
+
+    /**
+     * Shows plugin configuration page.
+     */
+    public function hookConfigForm($args)
+    {
+        $view = get_view();
+        echo $view->partial(
+            'plugins/history-log-config-form.php'
+        );
+    }
+
+    /**
+     * Handle a submitted config form.
+     *
+     * @param array Options set in the config form.
+     */
+    public function hookConfig($args)
+    {
+        $post = $args['post'];
+        foreach ($this->_options as $optionKey => $optionValue) {
+            if (in_array($optionKey, array(
+                    'history_log_display',
+                ))) {
+               $post[$optionKey] = json_encode($post[$optionKey]) ?: json_encode(array());
+            }
+            if (isset($post[$optionKey])) {
+                set_option($optionKey, $post[$optionKey]);
+            }
+        }
     }
 
     /**
@@ -164,6 +225,20 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
                     'type' =>'items|collections|files',
                     'id' => '\d+',
         )));
+
+        $args['router']->addRoute(
+            'history_log_undelete',
+            new Zend_Controller_Router_Route(
+                ':type/undelete/:id',
+                array(
+                    'module' => 'history-log',
+                    'controller' => 'log',
+                    'action' => 'undelete',
+                ),
+                array(
+                    'type' =>'items|collections|files',
+                    'id' => '\d+',
+        )));
     }
 
     /**
@@ -183,14 +258,13 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
 
         // If it's not a new record, check for changes.
         if (empty($args['insert'])) {
-            // In Omeka, an update is different when manual or automatic: the
-            // mixin for element texts uses only post data (manual insert).
-            // So, to simplify the logging, the update is cached here for any
-            // type of update. This alllows to log the changes only when are
-            // really saved.
-            $logEntry = new HistoryLogEntry();
-            $result = $logEntry->prepareEvent($record);
-            $this->_logEntries[get_class($record)][$record->id] = $logEntry;
+            // Prepare the log entry if none.
+            if (!isset($this->_preparedLogEntries[get_class($record)][$record->id])) {
+                $logEntry = new HistoryLogEntry();
+                $logEntry->prepareNewEvent($record);
+                $this->_preparedLogEntries[get_class($record)][$record->id] = $logEntry;
+            }
+            // Else, all elements texts are ready!?
         }
     }
 
@@ -211,11 +285,9 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         // It's an update of a record.
         if (empty($args['insert'])) {
             $this->_logEvent($record, HistoryLogEntry::OPERATION_UPDATE);
-            // Normally useless but may avoid a double update and reduce memory.
-            unset($this->_logEntries[get_class($record)][$record->id]);
         }
 
-        // If it's a new record, imported or manually created.
+        // This is a new record, imported or manually created.
         else {
             $imported = $this->_isImported();
             if ($imported) {
@@ -231,7 +303,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      * @param array $args An array of parameters passed by the hook.
      * @return void
      */
-    public function hookAfterDeleteRecord($args)
+    public function hookBeforeDeleteRecord($args)
     {
         $record = $args['record'];
         if (!$this->_isLoggable($record)) {
@@ -239,6 +311,172 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         }
 
         $this->_logEvent($record, HistoryLogEntry::OPERATION_DELETE);
+    }
+
+    /**
+     * Hook used before save an element text.
+     *
+     * The fonction "update_item" uses Builder_Item, that saves element texts
+     * before the record, so the old element texts are lost when it is used. So
+     * a check is done to save them in case of an update.
+     *
+     * @param array $args An array of parameters passed by the hook
+     * @return void
+     */
+    public function hookBeforeSaveElementText($args)
+    {
+        $elementText = $args['record'];
+
+        // Prepare the log entry if none.
+        if (!isset($this->_preparedLogEntries[$elementText->record_type][$elementText->record_id])) {
+            $logEntry = new HistoryLogEntry();
+            $record = get_record_by_id($elementText->record_type, $elementText->record_id);
+            if (empty($record)) {
+                return;
+            }
+            $logEntry->prepareNewEvent($record, 'element_text');
+            $this->_preparedLogEntries[$elementText->record_type][$elementText->record_id] = $logEntry;
+        }
+
+        $logEntry = $this->_preparedLogEntries[$elementText->record_type][$elementText->record_id];
+
+        // Save old values for an update.
+        if (empty($args['insert'])) {
+            // Return the old and unmodified text too to avoid an issue when
+            // order of texts change, in particular when a text that is not the
+            // last is removed.
+            $db = $this->_db;
+            $sql = "SELECT text FROM {$db->ElementText} WHERE id = " . (integer) $elementText->id;
+            $oldText = $db->fetchOne($sql);
+            $logEntry->prepareOneElementText($elementText->element_id, HistoryLogChange::TYPE_UPDATE, array(
+                'old' => $oldText,
+                'new' => $elementText->text,
+            ), $elementText->id);
+        }
+        // Save a new value.
+        else {
+            $logEntry->prepareOneElementText($elementText->element_id, HistoryLogChange::TYPE_CREATE, $elementText->text);
+        }
+    }
+
+    /**
+     * When a record is deleted, log the event.
+     *
+     * @param array $args An array of parameters passed by the hook.
+     * @return void
+     */
+    public function hookBeforeDeleteElementText($args)
+    {
+        $elementText = $args['record'];
+
+        // Prepare the log entry if none.
+        if (!isset($this->_preparedLogEntries[$elementText->record_type][$elementText->record_id])) {
+            $logEntry = new HistoryLogEntry();
+            $record = get_record_by_id($elementText->record_type, $elementText->record_id);
+            if (empty($record)) {
+                return;
+            }
+            $logEntry->prepareNewEvent($record, 'element_text');
+            $this->_preparedLogEntries[$elementText->record_type][$elementText->record_id] = $logEntry;
+        }
+
+        $logEntry = $this->_preparedLogEntries[$elementText->record_type][$elementText->record_id];
+
+        $logEntry->prepareOneElementText($elementText->element_id, HistoryLogChange::TYPE_DELETE, $elementText->text, $elementText->id);
+    }
+
+    /**
+     * When an record is deleted, log the event.
+     *
+     * @param array $args An array of parameters passed by the hook.
+     * @return void
+     */
+    public function hookBeforeDeleteElement($args)
+    {
+        $record = $args['record'];
+
+        // Search all records with content of this element in order to log them.
+
+        //A direct sql is used because the process may be heavy
+        $user = current_user();
+        if (is_null($user)) {
+            throw new Exception(__('Could not retrieve user info before removing of element %d.', $record->id));
+        }
+
+        $db = $this->_db;
+
+        // To avoid a transaction with Zend, the date of Entries is set in the
+        // future, then the ids are recalled for Changes, and finally are reset
+        // to true time.
+        $added = $db->quote(date('Y-m-d H:i:s', strtotime('+1 year')));
+
+        $sql = "
+            INSERT INTO `{$db->HistoryLogEntry}` (`record_type`, `record_id`, `user_id`, `operation`, `added`)
+            SELECT 'Collection', `record_id`, $user->id, '" . HistoryLogEntry::OPERATION_UPDATE . "', $added
+            FROM `{$db->ElementText}`
+            WHERE `record_type` = 'Collection'
+                AND `element_id` = {$record->id}
+        ;";
+        $db->query($sql);
+
+        $sql = "
+            INSERT INTO `{$db->HistoryLogEntry}` (`record_type`, `record_id`, `part_of`, `user_id`, `operation`, `added`)
+            SELECT 'Item', `record_id`, `collection_id`, $user->id, '" . HistoryLogEntry::OPERATION_UPDATE . "', $added
+            FROM `{$db->ElementText}` AS `element_texts`
+                JOIN `{$db->Item}` AS `items`
+                    ON `element_texts`.`record_type` = 'Item'
+                        AND `items`.`id` = `element_texts`.`record_id`
+            WHERE `element_texts`.`record_type` = 'Item'
+                AND `element_texts`.`element_id` = {$record->id}
+        ;";
+        $db->query($sql);
+
+        $sql = "
+            INSERT INTO `{$db->HistoryLogEntry}` (`record_type`, `record_id`, `part_of`, `user_id`, `operation`, `added`)
+            SELECT 'Item', `record_id`, `item_id`, $user->id, '" . HistoryLogEntry::OPERATION_UPDATE . "', $added
+            FROM `{$db->ElementText}` AS `element_texts`
+                JOIN `{$db->File}` AS `files`
+                    ON `element_texts`.`record_type` = 'File'
+                        AND `files`.`id` = `element_texts`.`record_id`
+            WHERE `element_texts`.`record_type` = 'File'
+                AND `element_texts`.`element_id` = {$record->id}
+        ;";
+        $db->query($sql);
+
+        $sql = "
+            INSERT INTO `{$db->HistoryLogChange}` (`entry_id`, `element_id`, `type`, `text`)
+            SELECT  `entries`.`id`, {$record->id}, '" . HistoryLogChange::TYPE_DELETE . "', `element_texts`.`text`
+            FROM `{$db->HistoryLogEntry}` AS `entries`
+                JOIN `{$db->ElementText}` AS `element_texts`
+                    ON `element_texts`.`record_type` = `entries`.`record_type`
+                        AND `element_texts`.`record_id` = `entries`.`record_id`
+                        AND `entries`.`added` = $added
+                        AND `element_texts`.`element_id` = {$record->id}
+        ;";
+        $db->query($sql);
+
+        $sql = "
+            UPDATE `{$db->HistoryLogEntry}`
+            SET `added` = NOW()
+            WHERE `added` = $added
+        ;";
+        $db->query($sql);
+
+        // For integrity purposes, the deletion of element texts is done via one
+        // sql too.
+        $sql = "
+            DELETE FROM `{$db->ElementText}`
+            WHERE `element_id` = {$record->id}
+        ;";
+        $db->query($sql);
+
+        $flash = Zend_Controller_Action_HelperBroker::getStaticHelper('FlashMessenger');
+        $msg = __('The element "%s" (%d) in set "%s" has been removed.', $record->name, $record->id, $record->set_name);
+        _log('[HistoryLog] ' . $msg, Zend_Log::WARN);
+        $flash->addMessage($msg, 'success');
+        $msg = __('The Omeka base should be reindexed.');
+        _log('[HistoryLog] ' . $msg, Zend_Log::WARN);
+        $flash->addMessage($msg, 'success');
     }
 
     public function hookExport($args)
@@ -266,7 +504,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     {
         $args['record'] = $args['item'];
         unset($args['item']);
-        $this->_adminRecordShow($args);
+        $this->_adminRecordShow($args, 'items/show');
     }
 
     /**
@@ -279,7 +517,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     {
         $args['record'] = $args['collection'];
         unset($args['collection']);
-        $this->_adminRecordShow($args);
+        $this->_adminRecordShow($args, 'collections/show');
     }
 
     /**
@@ -292,7 +530,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     {
         $args['record'] = $args['file'];
         unset($args['file']);
-        $this->_adminRecordShow($args);
+        $this->_adminRecordShow($args, 'files/show');
     }
 
     /**
@@ -300,12 +538,18 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      * record's admin page.
      *
      * @param array $args An array of parameters passed by the hook.
+     * @param string $page The current type of the page
      * @return void
      */
-    protected  function _adminRecordShow($args)
+    protected  function _adminRecordShow($args, $page)
     {
         $record = $args['record'];
         $view = $args['view'];
+
+        $currentPages = json_decode(get_option('history_log_display')) ?: array();
+        if (!in_array($page, $currentPages)) {
+            return;
+        }
 
         try {
             echo $view->showlog($record, 5);
@@ -324,6 +568,11 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     {
         $record = $args['item'];
         $view = $args['view'];
+
+        $currentPages = json_decode(get_option('history_log_display')) ?: array();
+        if (!in_array('items/browse', $currentPages)) {
+            return;
+        }
 
         $logEntry = $this->_db->getTable('HistoryLogEntry')
             ->getLastEntryForRecord($record);
@@ -433,31 +682,44 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      * @param Object|array $record The Omeka record to log. It should be an
      * object for a "create" or an "update".
      * @param string $operation The type of event to log (e.g. "create"...).
-     * @param string|array $change An extra piece of type specific data for the
+     * @param string|array $changes An extra piece of type specific data for the
      * log.
      * @return void
      */
-    private function _logEvent($record, $operation, $change = null)
+    private function _logEvent($record, $operation, $changes = null)
     {
         $user = current_user();
         if (is_null($user)) {
-            throw new Exception(__('Could not retrieve user info.'));
+            // Some contribution plugins like Scripto allow anonymous users to
+            // edit an element of a record.
+            $user = new User;
+            // Only the user id is set in HistoryLog entries.
+            $user->id = 0;
+            // The username should be unique. It can be the ip, like the wiki
+            // used by Scripto.
+            $user->username = 'anonymous';
+            $user->role = 'anonymous';
+            $user->name = 'anonymous';
+            // throw new Exception(__('Could not retrieve user info.'));
         }
 
-        if ($operation == HistoryLogEntry::OPERATION_UPDATE) {
-            if (!isset($this->_logEntries[get_class($record)][$record->id])) {
-                throw new Exception(__('Could not log this update.'));
-            }
-            $logEntry = $this->_logEntries[get_class($record)][$record->id];
+        // If the operation is an update, get the saved data.
+        if ($operation == HistoryLogEntry::OPERATION_UPDATE
+                && isset($this->_preparedLogEntries[get_class($record)][$record->id])
+            ) {
+            $logEntry = $this->_preparedLogEntries[get_class($record)][$record->id];
         }
-        // Simple event.
+
+        // Normal save.
         else {
             $logEntry = new HistoryLogEntry();
         }
 
         try {
             // Prepare the log entry.
-            $result = $logEntry->logEvent($record, $user, $operation, $change);
+            $result = $logEntry->logEvent($record, $operation, $user, $changes);
+            // May avoid a double update.
+            unset($this->_preparedLogEntries[get_class($record)][$record->id]);
             // Quick check if the record is loggable.
             if (!$result) {
                 throw new Exception(__('This event is not loggable.'));

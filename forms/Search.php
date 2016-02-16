@@ -21,32 +21,16 @@ class HistoryLog_Form_Search extends Omeka_Form
     public function init()
     {
         parent::init();
-        try {
-            $this->_registerElements();
-        } catch (Exception $e) {
-            throw $e;
-        }
-    }
 
-    /**
-     * Define the form elements.
-     *
-     * @return void
-     */
-    private function _registerElements()
-    {
         try {
             $recordTypeOptions = $this->_getRecordTypeOptions();
             $collectionOptions = $this->_getCollectionOptions();
             $userOptions = $this->_getUserOptions();
             $operationOptions = $this->_getoperationOptions();
             $elementOptions = $this->_getElementOptions();
+            $exportOptions = $this->_getexportOptions();
         } catch (Exception $e) {
             throw $e;
-        }
-
-        if (version_compare(OMEKA_VERSION, '2.2.1') >= 0) {
-            $this->addElement('hash', 'history_log_token');
         }
 
         // Record type.
@@ -113,7 +97,7 @@ class HistoryLog_Form_Search extends Omeka_Form
             'multiOptions' => $operationOptions,
         ));
 
-        // Operations.
+        // Elements.
         $this->addElement('select', 'element', array(
             'label' => __('Element'),
             'description' => __('Limit response with the selected element.')
@@ -127,7 +111,7 @@ class HistoryLog_Form_Search extends Omeka_Form
             'multiOptions' => $elementOptions,
         ));
 
-        // Dates.
+        // Date since.
         $this->addElement('text', 'since', array(
             'label' => __('Start Date'),
             'description' => __('The earliest date from which to retrieve logs.'),
@@ -146,9 +130,10 @@ class HistoryLog_Form_Search extends Omeka_Form
             )
         ));
 
+        // Date until.
         $this->addElement('text', 'until', array(
             'label' => __('End Date'),
-            'description' => __('The latest date, not included, from which to retrieve logs.'),
+            'description' => __('The latest date, included, from which to retrieve logs.'),
             'value' => 'YYYY-MM-DD',
             'order' => 8,
             'style' => 'max-width: 120px;',
@@ -164,32 +149,35 @@ class HistoryLog_Form_Search extends Omeka_Form
             )
         ));
 
-        $this->addElement('checkbox', 'csv-download', array(
-            'label' => __('Download full log as CSV file'),
-            'description' => __('The values will be separated by a tabulation.'),
+        // Output.
+        $this->addElement('radio', 'export', array(
+            'label' => __('Output'),
+            'value' => '',
             'order' => 9,
-            'style' => 'max-width: 120px;',
+            'validators' => array(
+                'alnum',
+            ),
             'required' => false,
+            'multiOptions' => $exportOptions,
         ));
 
-        $this->addElement('checkbox', 'csv-headers', array(
-            'label' => __('Include headers in csv files'),
+        $this->addElement('checkbox', 'export-headers', array(
+            'label' => __('Include headers'),
+            'value' => true,
             'order' => 10,
-            'style' => 'max-width: 120px;',
             'required' => false,
         ));
 
-        // Submit.
+        if (version_compare(OMEKA_VERSION, '2.2.1') >= 0) {
+            $this->addElement('hash', 'history_log_token');
+        }
+
+        // Button for submit.
         $this->addElement('submit', 'submit-search', array(
             'label' => __('Report'),
         ));
-        // TODO Add decorator as in "items/search-form.php" for scroll.
 
-        /*
-        $this->addElement('submit', 'submit-download', array(
-            'label' => __('Download Log'),
-        ));
-        */
+        // TODO Add decorator as in "items/search-form.php" for scroll.
 
         // Display Groups.
         $this->addDisplayGroup(array(
@@ -201,8 +189,8 @@ class HistoryLog_Form_Search extends Omeka_Form
             'element',
             'since',
             'until',
-            'csv-download',
-            'csv-headers'
+            'export',
+            'export-headers',
         ), 'fields');
 
         $this->addDisplayGroup(array(
@@ -218,7 +206,7 @@ class HistoryLog_Form_Search extends Omeka_Form
      * @return array $options An associative array of the logged record event
      * types.
      */
-    private function _getRecordTypeOptions()
+    protected function _getRecordTypeOptions()
     {
         return array(
             '' => __('All types of record'),
@@ -234,7 +222,7 @@ class HistoryLog_Form_Search extends Omeka_Form
      * @return array $collections An associative array of the collection IDs and
      * titles.
      */
-    private function _getCollectionOptions()
+    protected function _getCollectionOptions()
     {
         return get_table_options('Collection', __('All Collections'));
     }
@@ -242,13 +230,14 @@ class HistoryLog_Form_Search extends Omeka_Form
     /**
      * Retrieve Omeka Admin Users as selectable option list
      *
-     * @return array $collections An associative array of the userIds and
-     * usernames of all omeka users with admin privileges.
+     * @return array $users  An associative array of the user ids and usernames
+     * of all omeka users with admin privileges.
      */
-    private function _getUserOptions()
+    protected function _getUserOptions()
     {
         $options = array(
             '' => __('All Users'),
+            '0' => __('Anonymous User'),
         );
 
         try {
@@ -272,10 +261,9 @@ class HistoryLog_Form_Search extends Omeka_Form
     /**
      * Retrieve possible log operations as selectable option list.
      *
-     * @return array $options An associative array of the logged record event
-     * types.
+     * @return array $options An associative array of the operations.
      */
-    private function _getOperationOptions()
+    protected function _getOperationOptions()
     {
         return array(
             '' => __('All Actions'),
@@ -288,18 +276,60 @@ class HistoryLog_Form_Search extends Omeka_Form
     }
 
     /**
-     * Retrieve possible log operations as selectable option list.
+     * Retrieve possible elements as a selectable option list.
      *
      * @todo Add deleted elements that are used in old entries.
      *
-     * @return array $options An associative array of the logged record event
-     * types.
+     * @return array $options An associative array of the elements.
      */
-    private function _getElementOptions()
+    protected function _getElementOptions()
     {
         return get_table_options('Element', null, array(
             'record_types' => array('Item', 'All'),
             'sort' => 'orderBySet')
         );
+    }
+
+    /**
+     * Retrieve possible exports as a selectable option list.
+     *
+     * @return array $options An associative array of the format.
+     */
+    protected function _getexportOptions()
+    {
+        $options = array(
+            '' => __('Normal display'),
+            'csv' => __('csv (with tabulations)'),
+            'ods' => __('ods (OpenDocument Spreasheet)'),
+            'fods' => __('fods (Flat OpenDocument Spreadsheet)'),
+        );
+
+        $zipProcessor = $this->_getZipProcessor();
+        if (!$zipProcessor) {
+            unset($options['ods']);
+        }
+
+        return $options;
+    }
+
+    /**
+     * Check if the server support zip and return the method used.
+     *
+     * @return boolean
+     */
+    protected function _getZipProcessor()
+    {
+        if (class_exists('ZipArchive') && method_exists('ZipArchive', 'setCompressionName')) {
+            return 'ZipArchive';
+        }
+
+        // Test the zip command line via  the processor of ExternalImageMagick.
+        try {
+            $cmd = 'which zip';
+            Omeka_File_Derivative_Strategy_ExternalImageMagick::executeCommand($cmd, $status, $output, $errors);
+            return $status == 0 ? trim($output) : false;
+        } catch (Exception $e) {
+            return false;
+        }
     }
 }

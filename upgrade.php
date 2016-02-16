@@ -6,7 +6,7 @@ if (version_compare($oldVersion, '2.4', '<')) {
     // TODO Check if the structure is already upgraded in case of a bug.
     // Reorder columns and change name of columns "type" to "action".,
     // "value" to "change" and "time" to "added".
- 
+
     // First, remove all null values that could be present in columns
     // which are being changed to NOT NULL
     $null_columns = array('itemID',
@@ -282,5 +282,17 @@ if (version_compare($oldVersion, '2.6', '<')) {
         DROP COLUMN `change`,
         DROP COLUMN `title`
     ";
+    $db->query($sql);
+}
+
+if (version_compare($oldVersion, '2.7', '<')) {
+    // Add a new table to simplify complex queries with calendar requests.
+    $sql = "
+        CREATE TABLE IF NOT EXISTS `{$db->prefix}numerals` (
+            `i` TINYINT unsigned NOT NULL,
+            PRIMARY KEY (`i`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;";
+    $db->query($sql);
+    $sql = "INSERT INTO `{$db->prefix}numerals` (`i`) VALUES (0), (1), (2), (3), (4), (5), (6), (7), (8), (9);";
     $db->query($sql);
 }

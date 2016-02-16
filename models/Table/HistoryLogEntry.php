@@ -12,7 +12,7 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
      * @param array $params A set of parameters by which to filter the objects
      * that get returned from the database.
      * @param string $since Set the start date.
-     * @param string $until Set the end date (not included).
+     * @param string $until Set the end date, included.
      * @param User|integer $user Limit to a user.
      * @param integer $limit Number of objects to return per "page".
      * @param integer $page Page to retrieve.
@@ -26,7 +26,8 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
         if (!empty($until)) {
             $params['until'] = $until;
         }
-        if (!empty($user)) {
+        // An anonymous user can change an element (#0).
+        if (!is_null($user)) {
             $params['user'] = $user;
         }
         return $this->findBy($params, $limit, $page);
@@ -63,15 +64,42 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
     }
 
     /**
-     * Return last entry for a record.
+     * Return first entry for a record.
      *
      * @param Object|array $record
-     * @return HistoryLogEntry|null The last entry if any.
+     * @param string $operation
+     * @return HistoryLogEntry|null The first entry if any.
      */
-    public function getLastEntryForRecord($record)
+    public function getFirstEntryForRecord($record, $operation = null)
     {
         $params = array();
         $params['record'] = $record;
+        if ($operation) {
+            $params['operation'] = $operation;
+        }
+        $params['sort_field'] = 'added';
+        $params['sort_dir'] = 'a';
+
+        $entries = $this->findBy($params, 1);
+        if ($entries) {
+            return reset($entries);
+        }
+    }
+
+    /**
+     * Return last entry for a record.
+     *
+     * @param Object|array $record
+     * @param string $operation
+     * @return HistoryLogEntry|null The last entry if any.
+     */
+    public function getLastEntryForRecord($record, $operation = null)
+    {
+        $params = array();
+        $params['record'] = $record;
+        if ($operation) {
+            $params['operation'] = $operation;
+        }
         $params['sort_field'] = 'added';
         $params['sort_dir'] = 'd';
 
@@ -82,7 +110,7 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
     }
 
     /**
-     * Return the last entriy for elements of a record.
+     * Return the last entry for elements of a record.
      *
      * @param Object|array $record
      * @param array|Object|integer $elements All altered elements if empty.
@@ -158,6 +186,42 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
     }
 
     /**
+     * Wrapper to count all records with the specified text for an element
+     * during a period.
+     *
+     * This is useful for elements with a limited vocabulary and without
+     * repeatable values. For example, it allows to respond to a query such "How
+     * many records have the element "Metadata Status" set to "Published" by
+     * user "John Smith" during "September 2015"?" (example used by the plugin
+     * "Curator Monitor"). The interpretation of this count is harder when there
+     * are multiple values for the same element.
+     *
+     * @todo Manage repeatable values.
+     * @todo Manage deletion of records.
+     * @todo Import/Export are not checked (element_id = "0").
+     *
+     * @param array $params
+     * @param boolean $lastChange If true, only the value at the end of the
+     * period will be compute. This allows to avoid cases where the text has
+     * been updated multiple times, for example "Complete" then "Ready to
+     * Publish" and finally "Incomplete" (from the plugin "Curator Monitor").
+     * @param boolean $withAllDates If true, the dates without value will be
+     * added. For example, if there is no item added in August, the August value
+     * will be added with a count of "0".
+     * @param boolean $withDeletedElements When all changes are returned,
+     * merge deletion of elements too.
+     * @return array The number of records.
+     */
+    public function countRecords($params, $lastChange = true, $withAllDates = true, $withDeletedElements = true)
+    {
+        return $this->_db->getTable('HistoryLogChange')
+            ->countRecords($params, $lastChange, $withAllDates, $withDeletedElements);
+    }
+
+    /**
+     * Retrieve an array of key=>value pairs that can be used as options in a
+     * <select> form input.
+     *
      * @param Omeka_Db_Select
      * @param array
      * @return void
@@ -215,7 +279,6 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
     /**
      * Filter entry by record.
      *
-     * @see HistoryLogChange::filterByRecord()
      * @see self::applySearchFilters()
      * @param Omeka_Db_Select $select
      * @param Record|array $record
@@ -316,9 +379,9 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
         // timezone, and format the date to be MySQL timestamp compatible.
         $date = new Zend_Date($dateSince, Zend_Date::ISO_8601);
         $date->setTimezone(date_default_timezone_get());
-        $date = $date->get('yyyy-MM-dd HH:mm:ss');
+        $date = $date->get('yyyy-MM-dd') . ' 00:00:00';
 
-        // Select all dates that are greater than the passed date.
+        // Select all dates that are greater or equal than the passed date.
         $alias = $this->getTableAlias();
         $select->where("`$alias`.`$dateField` >= ?", $date);
     }
@@ -326,10 +389,7 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
     /**
      * Apply a date until filter to the select object.
      *
-     * @internal This is a forgotten method.
-     * @internal Unlike ilterBySince(), the date is strictly lower in order to
-     * simplify queries and to avoid to manage queries with start/end of day,
-     * So use from Monday 00:00:00 to Monday+7 00:00:00 to get a week.
+     * @internal This is a forgotten method. The time is forced to 23:59:59.999999.
      *
      * @see self::applySearchFilters()
      * @param Omeka_Db_Select $select
@@ -347,11 +407,11 @@ class Table_HistoryLogEntry extends Omeka_Db_Table
         // timezone, and format the date to be MySQL timestamp compatible.
         $date = new Zend_Date($dateUntil, Zend_Date::ISO_8601);
         $date->setTimezone(date_default_timezone_get());
-        $date = $date->get('yyyy-MM-dd HH:mm:ss');
+        $date = $date->get('yyyy-MM-dd') . ' 23:59:59.999999';
 
-        // Select all dates that are lower than the passed date.
+        // Select all dates that are lower or equal than the passed date.
         $alias = $this->getTableAlias();
-        $select->where("`$alias`.`$dateField` < ?", $date);
+        $select->where("`$alias`.`$dateField` <= ?", $date);
     }
 
     /**
