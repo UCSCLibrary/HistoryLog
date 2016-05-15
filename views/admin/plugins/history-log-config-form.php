@@ -26,7 +26,7 @@
             <div class="input-block">
                 <ul style="list-style-type: none;">
                 <?php
-                    $currentPages = json_decode(get_option('history_log_display')) ?: array();
+                    $currentPages = json_decode(get_option('history_log_display'), true) ?: array();
                     $pages = array(
                         'collections/show',
                         'items/show',

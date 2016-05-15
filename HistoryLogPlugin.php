@@ -546,7 +546,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         $record = $args['record'];
         $view = $args['view'];
 
-        $currentPages = json_decode(get_option('history_log_display')) ?: array();
+        $currentPages = json_decode(get_option('history_log_display'), true) ?: array();
         if (!in_array($page, $currentPages)) {
             return;
         }
@@ -569,7 +569,7 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         $record = $args['item'];
         $view = $args['view'];
 
-        $currentPages = json_decode(get_option('history_log_display')) ?: array();
+        $currentPages = json_decode(get_option('history_log_display'), true) ?: array();
         if (!in_array('items/browse', $currentPages)) {
             return;
         }
