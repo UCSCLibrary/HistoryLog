@@ -556,7 +556,7 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
                 break;
 
             case 'Collection':
-                $item = new Collection();
+                $record = new Collection();
                 $record->id = $logEntry->record_id;
                 $record->user = $logEntry->user_id ?: (integer) $currentUser->id;
                 $record->added = $added;
