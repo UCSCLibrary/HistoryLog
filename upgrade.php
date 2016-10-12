@@ -1,6 +1,12 @@
-
 <?php
 // Manage all upgrade processes (make main file lighter).
+
+if (version_compare($oldVersion, '1.1.3', '<')) {
+    $sql = "
+        ALTER TABLE `{$db->prefix}item_history_logs`
+        RENAME TO `{$db->HistoryLogEntry}`;";
+    $db->query($sql);
+}
 
 if (version_compare($oldVersion, '2.4', '<')) {
     // TODO Check if the structure is already upgraded in case of a bug.

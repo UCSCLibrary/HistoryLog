@@ -227,8 +227,9 @@ class Table_HistoryLogChange extends Omeka_Db_Table
      */
     protected function _countRecordsLastChange($params, $columnsDate, $withAllDates)
     {
+        $db = $this->_db;
         $alias = $this->getTableAlias();
-        $tableEntry = $this->_db->getTable('HistoryLogEntry');
+        $tableEntry = $db->getTable('HistoryLogEntry');
         $aliasEntry = $tableEntry->getTableAlias();
 
         // Prepare the main query used to count returned values.
@@ -276,25 +277,43 @@ class Table_HistoryLogChange extends Omeka_Db_Table
             ->group($lastChangesGroup);
         $this->applySearchFilters($selectLastChange, $params);
 
+        // Two temporary tables are required when the history changes grows,
+        // because there are two "JOIN" in the query.
+        $presql = array();
+        $presql[] = 'CREATE TEMPORARY TABLE history_log_1 AS '
+            . $selectAllChanges->__toString() . ';';
+        $presql[] = 'CREATE TEMPORARY TABLE history_log_2 AS '
+            . $selectLastChange->__toString() . ';';
+        // The indexes imrpove speed in big bases.
+        $presql[] = 'CREATE INDEX element_id ON history_log_1 (`element_id`);';
+        $presql[] = 'CREATE INDEX record_type ON history_log_1 (`record_type`);';
+        $presql[] = 'CREATE INDEX record_id ON history_log_1 (`record_id`);';
+        $presql[] = 'CREATE INDEX i_text ON history_log_1 (`text`(31));';
+        $presql[] = 'CREATE INDEX added ON history_log_1 (`added`);';
+        $presql[] = 'CREATE INDEX element_id ON history_log_2 (`element_id`);';
+        $presql[] = 'CREATE INDEX record_type ON history_log_2 (`record_type`);';
+        $presql[] = 'CREATE INDEX record_id ON history_log_2 (`record_id`);';
+        $presql[] = 'CREATE INDEX added ON history_log_2 (`added`);';
 
-        // Build the full query.
+        // Execute all temporary sql.
+        foreach ($presql as $query) {
+            $stmt = $db->query($query);
+        }
+
+        // Build the optimized full query.
         $sql = 'SELECT '
             . implode(', ', $countColumns)
             . ', COUNT(*) AS "Count"'
             // Add the sql to get all values.
-            . ' FROM ('
-            . $selectAllChanges->__toString()
-            . ') AS sub_1'
+            . ' FROM history_log_1 as sub_1'
             // Add the sql to get last values.
-            . ' JOIN ('
-            . $selectLastChange->__toString()
-            . ') AS sub_2
-                ON sub_2.element_id = sub_1.element_id
-                    AND sub_2.record_type = sub_1.record_type
-                    AND sub_2.record_id = sub_1.record_id
-                    AND sub_2.added = sub_1.added'
+            . ' JOIN history_log_2 as sub_2
+                ON sub_2.`element_id` = sub_1.`element_id`
+                    AND sub_2.`record_type` = sub_1.`record_type`
+                    AND sub_2.`record_id` = sub_1.`record_id`
+                    AND sub_2.`added` = sub_1.`added`'
             // Finalize the main query.
-            . ' WHERE text IS NOT NULL'
+            . ' WHERE `text` IS NOT NULL'
             . ' GROUP BY '
             . implode(', ', $countGroup);
 
@@ -307,7 +326,7 @@ class Table_HistoryLogChange extends Omeka_Db_Table
             $sql .= ', `' . implode('` ASC, `' , array_keys($columnsDate)) . '` ASC';
         }
 
-        $result = $this->_db->fetchAll($sql);
+        $result = $db->fetchAll($sql);
         return $result;
     }
 

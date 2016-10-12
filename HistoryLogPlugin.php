@@ -141,12 +141,14 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
     public function hookUninstall()
     {
         $db = $this->_db;
+        $sql = "DROP TABLE IF EXISTS `{$db->prefix}item_history_logs`";
+        $db->query($sql);
         $sql = "DROP TABLE IF EXISTS `{$db->HistoryLogEntry}`";
-        $db-> query($sql);
+        $db->query($sql);
         $sql = "DROP TABLE IF EXISTS `{$db->HistoryLogChange}`";
-        $db-> query($sql);
+        $db->query($sql);
         $sql = "DROP TABLE IF EXISTS `{$db->prefix}numerals`";
-        $db-> query($sql);
+        $db->query($sql);
 
         $this->_uninstallOptions();
     }
