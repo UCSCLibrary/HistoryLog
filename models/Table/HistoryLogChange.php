@@ -141,6 +141,7 @@ class Table_HistoryLogChange extends Omeka_Db_Table
         $subSelect = $select;
 
         $select = $this->getSelect();
+        $tableEntry->filterByRecord($select, $record);
         $select->joinInner(
             array('hlcx' => $subSelect),
             "`hlcx`.`element_id` = `$alias`.`element_id` AND `hlcx`.`x_added` = `$aliasEntry`.`added`",
