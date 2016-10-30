@@ -469,17 +469,17 @@ class HistoryLog_IndexController extends Omeka_Controller_AbstractActionControll
      */
     protected function _rrmdir($dirPath)
     {
-        $glob = glob($dirPath);
-        foreach ($glob as $g) {
-            if (!is_dir($g)) {
-                unlink($g);
+        $files = array_diff(scandir($dirPath), array('.', '..'));
+        foreach ($files as $file) {
+            $path = $dirPath . DIRECTORY_SEPARATOR . $file;
+            if (is_dir($path)) {
+                $this->_rrmDir($path);
             }
             else {
-                $this->_rrmdir("$g/*");
-                rmdir($g);
+                unlink($path);
             }
         }
-        return true;
+        return rmdir($dirPath);
     }
 
     /**
