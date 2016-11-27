@@ -614,7 +614,13 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
      */
     public function hookAdminHead()
     {
-        queue_js_file('history-log');
+        $requestParams = Zend_Controller_Front::getInstance()->getRequest()->getParams();
+        $module = isset($requestParams['module']) ? $requestParams['module'] : 'default';
+        $controller = isset($requestParams['controller']) ? $requestParams['controller'] : 'index';
+        $action = isset($requestParams['action']) ? $requestParams['action'] : 'index';
+        if ($module == 'history-log' && $controller == 'index' && $action == 'search') {
+            queue_js_file('history-log');
+        }
     }
 
     /**
