@@ -141,6 +141,7 @@ class Table_HistoryLogChange extends Omeka_Db_Table
         $subSelect = $select;
 
         $select = $this->getSelect();
+        $tableEntry->filterByRecord($select, $record);
         $select->joinInner(
             array('hlcx' => $subSelect),
             "`hlcx`.`element_id` = `$alias`.`element_id` AND `hlcx`.`x_added` = `$aliasEntry`.`added`",
@@ -280,6 +281,8 @@ class Table_HistoryLogChange extends Omeka_Db_Table
         // Two temporary tables are required when the history changes grows,
         // because there are two "JOIN" in the query.
         $presql = array();
+        $presql[] = 'DROP TABLE IF EXISTS history_log_1;';
+        $presql[] = 'DROP TABLE IF EXISTS history_log_2;';
         $presql[] = 'CREATE TEMPORARY TABLE history_log_1 AS '
             . $selectAllChanges->__toString() . ';';
         $presql[] = 'CREATE TEMPORARY TABLE history_log_2 AS '
