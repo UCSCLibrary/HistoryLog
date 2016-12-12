@@ -70,7 +70,10 @@ class HistoryLog_LogController extends Omeka_Controller_AbstractActionController
         // Try to undelete it.
         // Check if the last operation is a deletion.
         $logEntry = $this->_helper->_db->getTable('HistoryLogEntry')
-            ->getLastEntryForRecord($record, HistoryLogEntry::OPERATION_DELETE);
+            ->getLastEntryForRecord(array(
+                    'record_type' => $recordType,
+                    'record_id' => $recordId,
+                ), HistoryLogEntry::OPERATION_DELETE);
         if (empty($logEntry)) {
             $flashMessenger->addMessage(__('The deletion of the record "%s #%d" has not been logged and cannot be undeleted!', $recordType, $recordId), 'error');
             $url = Inflector::tableize($recordType) . '/log/' . $recordId;
