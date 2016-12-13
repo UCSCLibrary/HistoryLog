@@ -512,7 +512,10 @@ class HistoryLogEntry extends Omeka_Record_AbstractRecord
         // Get the oldest entry of the record to fill the "added" date.
         $added = null;
         $logEntryCreate = $this->_db->getTable('HistoryLogEntry')
-            ->getFirstEntryForRecord(array($logEntry->record_type, $logEntry->record_id), HistoryLogEntry::OPERATION_CREATE);
+            ->getFirstEntryForRecord(array(
+                    'record_type' => $logEntry->record_type,
+                    'record_id' => $logEntry->record_id,
+                ), HistoryLogEntry::OPERATION_CREATE);
         if ($logEntryCreate) {
             $added = $logEntryCreate->added;
         }
