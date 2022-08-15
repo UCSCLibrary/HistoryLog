@@ -13,14 +13,8 @@ div.record-title {
     white-space: nowrap;
 }
 </style>
-<div id="primary">
     <?php echo flash(); ?>
-    <div>
 <?php if (total_records('HistoryLogEntry') > 0): ?>
-        <div class="table-actions">
-            <a href="<?php echo html_escape(url('history-log/index/search')); ?>" class="add button small green"><?php echo __('Advanced Reports'); ?></a>
-        </div>
-        <?php echo common('quick-filters'); ?>
         <div id="item-filters">
             <ul>
                 <?php if (!empty($params['record_type'])): ?>
@@ -57,8 +51,10 @@ div.record-title {
             </ul>
     </div>
         <?php if (iterator_count(loop('HistoryLogEntry'))): ?>
+        <a href="<?php echo html_escape(url('history-log/index/search')); ?>" class="add full-width-mobile button green"><?php echo __('Advanced Reports'); ?></a>
+        <?php echo common('quick-filters'); ?>
         <div class="pagination"><?php echo $paginationLinks = pagination_links(); ?></div>
-        <table id="history-log-entries">
+        <div class="table-responsive"><table id="history-log-entries">
             <thead>
                 <tr>
                     <?php
@@ -107,7 +103,8 @@ div.record-title {
                 </tr>
                 <?php endforeach; ?>
             </tbody>
-        </table>
+        </table></div>
+        <a href="<?php echo html_escape(url('history-log/index/search')); ?>" class="add full-width-mobile button green"><?php echo __('Advanced Reports'); ?></a>
         <div class="pagination"><?php echo $paginationLinks; ?></div>
         <?php else: ?>
         <br class="clear" />
@@ -119,7 +116,5 @@ div.record-title {
 <?php else: ?>
         <p><?php echo __('No entry have been logged.'); ?></p>
 <?php endif; ?>
-    </div>
-</div>
 <?php
 echo foot();

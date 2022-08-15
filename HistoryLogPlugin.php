@@ -621,6 +621,9 @@ class HistoryLogPlugin extends Omeka_Plugin_AbstractPlugin
         if ($module == 'history-log' && $controller == 'index' && $action == 'search') {
             queue_js_file('history-log');
         }
+        if ($module == 'history-log') {
+            queue_css_file('fix-omeka-3-0-3-admin');
+        }
     }
 
     /**

@@ -1,0 +1,66 @@
+.quick-filter-wrapper {
+  background: url('/admin/themes/default/images/dropdown-arrow.png') no-repeat right center #f3f3f3; /* Fallback */
+  background: url('/admin/themes/default/images/dropdown-arrow.png') no-repeat right center, -webkit-linear-gradient(top, #f8f8f8, #e2e2e2);
+  background: url('/admin/themes/default/images/dropdown-arrow.png') no-repeat right center, -moz-linear-gradient(top, #f8f8f8, #e2e2e2);
+  background: url('/admin/themes/default/images/dropdown-arrow.png') no-repeat right center, -o-linear-gradient(top, #f8f8f8, #e2e2e2);
+  background: url('/admin/themes/default/images/dropdown-arrow.png') no-repeat right center, linear-gradient(to bottom, #f8f8f8, #e2e2e2);
+  border: 1px solid #D8D8D8;
+  -webkit-box-shadow: 1px 1px 2px rgba(0,0,0,.1), 0 -1px 0 0 rgba(0,0,0,.07) inset;
+  -moz-box-shadow: 1px 1px 2px rgba(0,0,0,.1), 0 -1px 0 0 rgba(0,0,0,.07) inset;
+  box-shadow: 1px 1px 2px rgba(0,0,0,.1), 0 -1px 0 0 rgba(0,0,0,.07) inset;
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+  color: #666;
+  display: inline-block;
+  line-height: 16px;
+  margin: 0 0 0 -3px;
+  vertical-align: top;
+  padding: 0;
+  z-index: 15;
+}
+
+.quick-filter-wrapper ul {
+  background: #fff;
+  border: 1px solid #D8D8D8;
+  -webkit-box-shadow: 1px 1px 2px rgba(0,0,0,.1);
+  -moz-box-shadow: 1px 1px 2px rgba(0,0,0,.1);
+  box-shadow: 1px 1px 2px rgba(0,0,0,.1);
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+  position:absolute;
+  left:-9999px;
+  min-width:122px;
+  top:-1px;
+  padding: 0;
+  z-index: 1001;
+}
+
+.quick-filter-wrapper li {
+  float:left;
+  position:relative;
+  list-style: none;
+}
+
+
+.quick-filter-wrapper li a, .quick-filter-wrapper li span {
+  min-width: 105px;
+  display:block;
+  float:left;
+  color:#666;
+  padding: 7px 24px 7px 8px;
+  text-decoration:none;
+}
+
+.quick-filter-wrapper ul li { margin:0; }
+.quick-filter-wrapper ul li a { min-width:105px; padding: 2px 24px 2px 4px; }
+
+.quick-filter-wrapper ul li:hover:first-child { background-color:#fff; }
+.quick-filter-wrapper ul li:hover { background-color:#ccc; }
+
+.quick-filter-wrapper li a:active + ul.dropdown,
+.quick-filter-wrapper li a:focus + ul.dropdown { left: -1px; }
+
+.quick-filter-wrapper li a:focus { outline: none; }
+.quick-filter-wrapper li ul:hover { left: -1px; }
